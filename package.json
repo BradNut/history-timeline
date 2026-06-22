@@ -1,0 +1,14 @@
+{
+  "name": "history-timeline",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter history-timeline-web dev",
+    "build": "pnpm --filter history-timeline-web build",
+    "preview": "pnpm --filter history-timeline-web preview",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
