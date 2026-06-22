@@ -7,11 +7,12 @@ import type { WikipediaEvent } from './types';
 export async function upsertEvents(
 	wikiEvents: WikipediaEvent[],
 	month: number,
-	day: number
+	day: number,
+	type: string = 'daily'
 ): Promise<{ eventsUpserted: number; unmappedCount: number }> {
 	const logEntry = await db
 		.insert(importLogs)
-		.values({ type: 'daily', status: 'running', eventsUpserted: 0, unmappedCount: 0 })
+		.values({ type, status: 'running', eventsUpserted: 0, unmappedCount: 0 })
 		.returning();
 	const logId = logEntry[0].id;
 
@@ -45,6 +46,7 @@ export async function upsertEvents(
 					.set({ description, imageUrl, sourceUrl, rawCategories, updatedAt: new Date() })
 					.where(eq(events.id, existing.id))
 					.returning();
+				await db.delete(eventTopics).where(eq(eventTopics.eventId, existing.id));
 			} else {
 				[upserted] = await db
 					.insert(events)

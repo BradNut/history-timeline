@@ -1,6 +1,8 @@
 import { db } from '$lib/server/db';
-import { events, eventTopics, topics, subtopics } from '$lib/server/db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { topics, importLogs } from '$lib/server/db/schema';
+import { getEvents } from '$lib/server/events';
+import { runImportForDate } from '$lib/server/import-actions';
+import { and, eq, gt, count } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export type EventWithTopics = {
@@ -16,6 +18,73 @@ export type EventWithTopics = {
 	sourceType: string | null;
 	topics: Array<{ topicId: number; topicName: string; topicSlug: string; subtopicName: string | null }>;
 };
+
+type LoadDeps = {
+	getTopics: () => Promise<Array<{ id: number; name: string; slug: string; createdAt: Date }>>;
+	getEvents: typeof getEvents;
+	getRunningImportCount: (month: number, day: number) => Promise<number>;
+	runImportForDate: typeof runImportForDate;
+};
+
+const RUNNING_IMPORT_WINDOW_MS = 5 * 60 * 1000;
+
+const defaultDeps: LoadDeps = {
+	getTopics: () => db.select().from(topics).orderBy(topics.name),
+	getEvents,
+	getRunningImportCount: async (month, day) => {
+		const since = new Date(Date.now() - RUNNING_IMPORT_WINDOW_MS);
+		const rows = await db
+			.select({ value: count() })
+			.from(importLogs)
+			.where(
+				and(
+					eq(importLogs.status, 'running'),
+					gt(importLogs.startedAt, since)
+				)
+			);
+		return rows[0]?.value ?? 0;
+	},
+	runImportForDate
+};
+
+export function _createLoad(deps: LoadDeps): PageServerLoad {
+	return async ({ url }) => {
+		const dateParam = url.searchParams.get('date');
+		const granularity = (url.searchParams.get('granularity') ?? 'today') as 'today' | 'week' | 'month';
+		const topicSlug = url.searchParams.get('topic');
+
+		const anchorDate = dateParam ? new Date(dateParam) : new Date();
+		const { months, days } = getDateRange(anchorDate, granularity);
+
+		const allTopics = await deps.getTopics();
+
+		let topicIdFilter: number | undefined;
+		if (topicSlug) {
+			const topic = allTopics.find((t) => t.slug === topicSlug);
+			topicIdFilter = topic?.id;
+		}
+
+		let eventList = await deps.getEvents({ months, days, topicIdFilter });
+
+		if (granularity === 'today' && eventList.length === 0) {
+			const month = anchorDate.getMonth() + 1;
+			const day = anchorDate.getDate();
+			const runningCount = await deps.getRunningImportCount(month, day);
+			if (runningCount === 0) {
+				await deps.runImportForDate(month, day);
+				eventList = await deps.getEvents({ months, days, topicIdFilter });
+			}
+		}
+
+		return {
+			events: eventList,
+			anchorDate: anchorDate.toISOString().split('T')[0],
+			granularity,
+			topicSlug,
+			topics: allTopics
+		};
+	};
+}
 
 function getDateRange(
 	anchorDate: Date,
@@ -50,86 +119,4 @@ function getDateRange(
 	};
 }
 
-export const load: PageServerLoad = async ({ url }) => {
-	const dateParam = url.searchParams.get('date');
-	const granularity = (url.searchParams.get('granularity') ?? 'today') as 'today' | 'week' | 'month';
-	const topicSlug = url.searchParams.get('topic');
-
-	const anchorDate = dateParam ? new Date(dateParam) : new Date();
-	const { months, days } = getDateRange(anchorDate, granularity);
-
-	const allTopics = await db.select().from(topics).orderBy(topics.name);
-
-	let topicIdFilter: number | undefined;
-	if (topicSlug) {
-		const topic = allTopics.find((t) => t.slug === topicSlug);
-		topicIdFilter = topic?.id;
-	}
-
-	const rows = await db
-		.select({
-			id: events.id,
-			title: events.title,
-			description: events.description,
-			eventDate: events.eventDate,
-			year: events.year,
-			month: events.month,
-			day: events.day,
-			imageUrl: events.imageUrl,
-			sourceUrl: events.sourceUrl,
-			sourceType: events.sourceType,
-			topicId: topics.id,
-			topicName: topics.name,
-			topicSlug: topics.slug,
-			subtopicName: subtopics.name
-		})
-		.from(events)
-		.leftJoin(eventTopics, eq(eventTopics.eventId, events.id))
-		.leftJoin(topics, eq(topics.id, eventTopics.topicId))
-		.leftJoin(subtopics, eq(subtopics.id, eventTopics.subtopicId))
-		.where(
-			and(
-				inArray(events.month, months),
-				inArray(events.day, days),
-				topicIdFilter ? eq(eventTopics.topicId, topicIdFilter) : undefined
-			)
-		)
-		.orderBy(events.year);
-
-	const eventsMap = new Map<number, EventWithTopics>();
-	for (const row of rows) {
-		if (!eventsMap.has(row.id)) {
-			eventsMap.set(row.id, {
-				id: row.id,
-				title: row.title,
-				description: row.description,
-				eventDate: row.eventDate,
-				year: row.year,
-				month: row.month,
-				day: row.day,
-				imageUrl: row.imageUrl,
-				sourceUrl: row.sourceUrl,
-				sourceType: row.sourceType,
-				topics: []
-			});
-		}
-		if (row.topicId && row.topicName && row.topicSlug) {
-			eventsMap.get(row.id)!.topics.push({
-				topicId: row.topicId,
-				topicName: row.topicName,
-				topicSlug: row.topicSlug,
-				subtopicName: row.subtopicName ?? null
-			});
-		}
-	}
-
-	const eventList = [...eventsMap.values()].sort((a, b) => b.year - a.year);
-
-	return {
-		events: eventList,
-		anchorDate: anchorDate.toISOString().split('T')[0],
-		granularity,
-		topicSlug,
-		topics: allTopics
-	};
-};
+export const load: PageServerLoad = _createLoad(defaultDeps);

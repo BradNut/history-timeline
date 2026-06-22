@@ -1,7 +1,8 @@
 import { db } from '$lib/server/db';
-import { unmappedCategories, taxonomyMappings, topics, subtopics, events } from '$lib/server/db/schema';
+import { unmappedCategories, topics, subtopics, events } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { fail, redirect } from '@sveltejs/kit';
+import { resolveUnmappedCategory } from '$lib/server/import/resolve';
 import type { PageServerLoad, Actions } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -32,8 +33,7 @@ export const actions: Actions = {
 
 		if (!unmappedId || !topicId || !rawCategory) return fail(400, { error: 'Missing fields' });
 
-		await db.insert(taxonomyMappings).values({ rawCategory, topicId, subtopicId }).onConflictDoNothing();
-		await db.update(unmappedCategories).set({ resolved: true }).where(eq(unmappedCategories.id, unmappedId));
+		await resolveUnmappedCategory({ unmappedId, rawCategory, topicId, subtopicId });
 
 		redirect(303, '/admin/unmapped');
 	}

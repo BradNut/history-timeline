@@ -1,0 +1,2 @@
+ALTER TABLE "event_topics" DROP CONSTRAINT "event_topics_event_id_topic_id_subtopic_id_unique";--> statement-breakpoint
+ALTER TABLE "event_topics" ADD CONSTRAINT "event_topics_event_id_topic_id_subtopic_id_unique" UNIQUE NULLS NOT DISTINCT("event_id","topic_id","subtopic_id");

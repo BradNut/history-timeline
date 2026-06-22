@@ -7,10 +7,19 @@ export type ImportActionResult = { ok: true; data: ImportResult } | { ok: false;
 
 type Deps = {
 	fetchOnThisDay: typeof fetchOnThisDay;
-	upsertEvents: typeof upsertEvents;
+	upsertEvents: (wikiEvents: Parameters<typeof upsertEvents>[0], month: number, day: number, type?: string) => ReturnType<typeof upsertEvents>;
 };
 
 const defaultDeps: Deps = { fetchOnThisDay, upsertEvents };
+
+export async function runImportForDate(
+	month: number,
+	day: number,
+	deps: Deps = defaultDeps
+): Promise<ImportResult> {
+	const wikiEvents = await deps.fetchOnThisDay(month, day);
+	return deps.upsertEvents(wikiEvents, month, day, 'auto');
+}
 
 export async function runDailyImport(
 	role: string | null | undefined,
@@ -24,8 +33,7 @@ export async function runDailyImport(
 	const month = now.getMonth() + 1;
 	const day = now.getDate();
 
-	const wikiEvents = await deps.fetchOnThisDay(month, day);
-	const result = await deps.upsertEvents(wikiEvents, month, day);
+	const result = await runImportForDate(month, day, deps);
 	return { ok: true, data: result };
 }
 

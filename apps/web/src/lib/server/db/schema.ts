@@ -57,7 +57,7 @@ export const eventTopics = pgTable('event_topics', {
 		.notNull()
 		.references(() => topics.id, { onDelete: 'cascade' }),
 	subtopicId: integer('subtopic_id').references(() => subtopics.id, { onDelete: 'set null' })
-}, (t) => [unique().on(t.eventId, t.topicId, t.subtopicId)]);
+}, (t) => [unique().on(t.eventId, t.topicId, t.subtopicId).nullsNotDistinct()]);
 
 export const taxonomyMappings = pgTable('taxonomy_mappings', {
 	id: serial('id').primaryKey(),

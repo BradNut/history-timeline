@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runDailyImport, runFullImport } from './import-actions';
+import { runDailyImport, runFullImport, runImportForDate } from './import-actions';
 
 const mockFetch = vi.fn();
 const mockUpsert = vi.fn();
@@ -9,6 +9,25 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mockFetch.mockResolvedValue([]);
 	mockUpsert.mockResolvedValue({ eventsUpserted: 5, unmappedCount: 1 });
+});
+
+describe('runImportForDate', () => {
+	it('calls fetchOnThisDay with the given month and day', async () => {
+		await runImportForDate(6, 21, deps);
+		expect(mockFetch).toHaveBeenCalledWith(6, 21);
+	});
+
+	it('calls upsertEvents with the fetched events, date, and auto type', async () => {
+		const wikiEvents = [{ year: 1969, text: 'Moon landing', sourceType: 'event', pages: [] }];
+		mockFetch.mockResolvedValue(wikiEvents);
+		await runImportForDate(6, 21, deps);
+		expect(mockUpsert).toHaveBeenCalledWith(wikiEvents, 6, 21, 'auto');
+	});
+
+	it('returns the upsert result', async () => {
+		const result = await runImportForDate(6, 21, deps);
+		expect(result).toEqual({ eventsUpserted: 5, unmappedCount: 1 });
+	});
 });
 
 describe('runDailyImport', () => {
