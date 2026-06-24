@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>%sveltekit.status% — History Timeline</title>
+		<style>
+			:root {
+				color-scheme: dark;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				min-height: 100vh;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 1rem;
+				background: #0a0a0a;
+				color: #fff;
+				font-family:
+					ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+					Helvetica, Arial, sans-serif;
+			}
+			.wrap {
+				max-width: 28rem;
+				width: 100%;
+				text-align: center;
+			}
+			.badge {
+				width: 4rem;
+				height: 4rem;
+				margin: 0 auto 1.5rem;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 9999px;
+				border: 1px solid rgba(255, 255, 255, 0.1);
+				background: rgba(255, 255, 255, 0.05);
+				font-size: 1.75rem;
+			}
+			.status {
+				font-size: 3.75rem;
+				font-weight: 700;
+				letter-spacing: -0.02em;
+				margin: 0;
+				font-variant-numeric: tabular-nums;
+			}
+			.message {
+				margin: 0.5rem 0 1.5rem;
+				color: rgba(255, 255, 255, 0.5);
+			}
+			a.button {
+				display: inline-flex;
+				align-items: center;
+				gap: 0.5rem;
+				padding: 0.5rem 1rem;
+				border-radius: 0.625rem;
+				background: #fff;
+				color: #0a0a0a;
+				font-size: 0.875rem;
+				font-weight: 500;
+				text-decoration: none;
+			}
+			a.button:hover {
+				background: rgba(255, 255, 255, 0.85);
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<div class="badge">!</div>
+			<p class="status">%sveltekit.status%</p>
+			<p class="message">%sveltekit.error.message%</p>
+			<a class="button" href="/">Back to timeline</a>
+		</div>
+	</body>
+</html>
