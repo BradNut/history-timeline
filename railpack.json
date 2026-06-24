@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "node",
+  "steps": {
+    "build": {
+      "commands": [
+        "pnpm install --frozen-lockfile",
+        "pnpm build",
+        "pnpm --filter history-timeline-web db:migrate",
+        "pnpm --filter history-timeline-web db:seed"
+      ]
+    },
+    "deploy": {
+      "startCommand": "node apps/web/build/index.js"
+    }
+  }
+}
