@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from "svelte";
 	import type { PageData } from "./$types";
 	import AnchorDateScrubber from "$lib/components/AnchorDateScrubber.svelte";
 	import GranularitySelector from "$lib/components/GranularitySelector.svelte";
@@ -11,10 +12,26 @@
 
 	let selectedEvent = $state<EventWithTopics | null>(null);
 	let modalOpen = $state(false);
+	let highlightedEventId = $state<number | undefined>(undefined);
 
 	$effect(() => {
 		if (!modalOpen) selectedEvent = null;
 	});
+
+	async function handleRelatedSelect(rel: { id: number }) {
+		modalOpen = false;
+		highlightedEventId = rel.id;
+		await tick();
+		setTimeout(() => {
+			document.getElementById(`event-${rel.id}`)?.scrollIntoView({
+				behavior: "smooth",
+				block: "center",
+			});
+		}, 150);
+		setTimeout(() => {
+			highlightedEventId = undefined;
+		}, 5000);
+	}
 </script>
 
 <svelte:head>
@@ -48,6 +65,7 @@
 
 		<Timeline
 			events={data.events}
+			{highlightedEventId}
 			onselect={(e) => {
 				selectedEvent = e;
 				modalOpen = true;
@@ -56,6 +74,10 @@
 	</main>
 
 	{#if selectedEvent}
-		<EventDetailModal event={selectedEvent} bind:open={modalOpen} />
+		<EventDetailModal
+			event={selectedEvent}
+			bind:open={modalOpen}
+			onrelateselect={handleRelatedSelect}
+		/>
 	{/if}
 </div>

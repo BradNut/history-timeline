@@ -15,9 +15,16 @@
 	let {
 		event,
 		open = $bindable(false),
+		onrelateselect,
 	}: {
 		event: EventWithTopics;
 		open: boolean;
+		onrelateselect?: (rel: {
+			id: number;
+			title: string;
+			year: number;
+			sourceType: string | null;
+		}) => void;
 	} = $props();
 
 	let fullEvent = $state<FullEvent | null>(null);
@@ -98,8 +105,16 @@
 				</h3>
 				<ul class="space-y-2">
 					{#each fullEvent.related as rel}
-						<li class="text-white/60 text-sm">
-							<span class="text-white/30 mr-2">{rel.year}</span>{rel.title}
+						<li>
+							<button
+								class="w-full text-left text-white/60 hover:text-white text-sm cursor-pointer transition-colors"
+								onclick={() => {
+									open = false;
+									onrelateselect?.(rel);
+								}}
+							>
+								<span class="text-white/30 mr-2">{rel.year}</span>{rel.title}
+							</button>
 						</li>
 					{/each}
 				</ul>
