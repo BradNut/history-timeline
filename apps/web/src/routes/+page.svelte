@@ -10,6 +10,11 @@
 	let { data }: { data: PageData } = $props();
 
 	let selectedEvent = $state<EventWithTopics | null>(null);
+	let modalOpen = $state(false);
+
+	$effect(() => {
+		if (!modalOpen) selectedEvent = null;
+	});
 </script>
 
 <svelte:head>
@@ -41,13 +46,16 @@
 			</div>
 		{/if}
 
-		<Timeline events={data.events} onselect={(e) => (selectedEvent = e)} />
+		<Timeline
+			events={data.events}
+			onselect={(e) => {
+				selectedEvent = e;
+				modalOpen = true;
+			}}
+		/>
 	</main>
 
 	{#if selectedEvent}
-		<EventDetailModal
-			event={selectedEvent}
-			onclose={() => (selectedEvent = null)}
-		/>
+		<EventDetailModal event={selectedEvent} bind:open={modalOpen} />
 	{/if}
 </div>

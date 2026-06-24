@@ -1,23 +1,30 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
-	import type { EventWithTopics } from '../../routes/+page.server';
+	import { Badge } from "$lib/components/ui/badge";
+	import * as Dialog from "$lib/components/ui/dialog";
+	import type { EventWithTopics } from "../../routes/+page.server";
 
 	type FullEvent = EventWithTopics & {
-		related?: Array<{ id: number; title: string; year: number; sourceType: string | null }>;
+		related?: Array<{
+			id: number;
+			title: string;
+			year: number;
+			sourceType: string | null;
+		}>;
 	};
 
 	let {
 		event,
-		onclose
+		open = $bindable(false),
 	}: {
 		event: EventWithTopics;
-		onclose: () => void;
+		open: boolean;
 	} = $props();
 
 	let fullEvent = $state<FullEvent | null>(null);
 	let loading = $state(true);
 
 	$effect(() => {
+		if (!open) return;
 		loading = true;
 		fullEvent = null;
 		fetch(`/api/events/${event.id}`)
@@ -32,41 +39,29 @@
 			});
 	});
 
-	function handleBackdropClick(e: MouseEvent) {
-		if (e.target === e.currentTarget) onclose();
-	}
-
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') onclose();
-	}
-
 	const displayed = $derived(fullEvent ?? event);
 </script>
 
-<div
-	class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
-	role="dialog"
-	aria-modal="true"
-	onclick={handleBackdropClick}
-	onkeydown={handleKeydown}
-	tabindex="-1"
->
-	<div class="bg-[#111] border border-white/15 rounded-xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6 space-y-4">
-		<div class="flex justify-between items-start gap-3">
-			<h2 class="text-white font-bold text-xl leading-snug">{displayed.title}</h2>
-			<button
-				class="text-white/40 hover:text-white text-2xl leading-none shrink-0"
-				onclick={onclose}
-				aria-label="Close"
-			>×</button>
-		</div>
+<Dialog.Root bind:open>
+	<Dialog.Content
+		class="max-w-lg max-h-[85vh] overflow-y-auto bg-[#111] border-white/15"
+	>
+		<Dialog.Header>
+			<Dialog.Title class="text-white font-bold text-xl leading-snug"
+				>{displayed.title}</Dialog.Title
+			>
+		</Dialog.Header>
 
 		{#if loading}
 			<div class="h-2 bg-white/10 rounded animate-pulse"></div>
 		{/if}
 
 		{#if displayed.imageUrl}
-			<img src={displayed.imageUrl} alt={displayed.title} class="w-full rounded-lg object-cover max-h-48" />
+			<img
+				src={displayed.imageUrl}
+				alt={displayed.title}
+				class="w-full rounded-lg object-contain max-h-64 bg-white/5"
+			/>
 		{/if}
 
 		{#if displayed.topics.length > 0}
@@ -80,7 +75,9 @@
 		{/if}
 
 		{#if displayed.description}
-			<p class="text-white/70 text-sm leading-relaxed">{displayed.description}</p>
+			<p class="text-white/70 text-sm leading-relaxed">
+				{displayed.description}
+			</p>
 		{/if}
 
 		{#if displayed.sourceUrl}
@@ -96,7 +93,9 @@
 
 		{#if fullEvent?.related && fullEvent.related.length > 0}
 			<div class="border-t border-white/10 pt-4">
-				<h3 class="text-white/50 text-xs uppercase tracking-widest mb-3">Also on this date</h3>
+				<h3 class="text-white/50 text-xs uppercase tracking-widest mb-3">
+					Also on this date
+				</h3>
 				<ul class="space-y-2">
 					{#each fullEvent.related as rel}
 						<li class="text-white/60 text-sm">
@@ -106,5 +105,5 @@
 				</ul>
 			</div>
 		{/if}
-	</div>
-</div>
+	</Dialog.Content>
+</Dialog.Root>
