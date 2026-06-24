@@ -5,10 +5,10 @@ import { topics, subtopics, user, account } from './schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
+import { validateEnv } from '../env';
 
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
-
-const client = postgres(process.env.DATABASE_URL);
+const env = validateEnv();
+const client = postgres(env.DATABASE_URL);
 const db = drizzle(client, { schema });
 
 const SEED_TOPICS: Array<{ name: string; slug: string; subtopics: string[] }> = [
@@ -70,8 +70,8 @@ async function seedTopics() {
 async function seedAdminUser() {
 	console.log('Creating admin user...');
 
-	const email = 'admin@historytimeline.local';
-	const password = 'changeme-admin-2025';
+	const email = env.ADMIN_SEED_EMAIL;
+	const password = env.ADMIN_SEED_PASSWORD;
 
 	const existing = await db.query.user.findFirst({ where: eq(user.email, email) });
 	if (existing) {
@@ -105,7 +105,6 @@ async function seedAdminUser() {
 	});
 
 	console.log(`  ✓ Admin user created: ${email}`);
-	console.log(`  ⚠ Change the default password before deploying!`);
 }
 
 async function main() {

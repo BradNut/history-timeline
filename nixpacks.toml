@@ -2,7 +2,7 @@
 cmds = ["pnpm install --frozen-lockfile"]
 
 [phases.build]
-cmds = ["pnpm build"]
+cmds = ["pnpm build", "pnpm --filter history-timeline-web db:migrate", "pnpm --filter history-timeline-web db:seed"]
 
 [start]
 cmd = "node apps/web/build/index.js"
