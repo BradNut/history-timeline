@@ -9,15 +9,17 @@ type AuthApi = {
 	signOut: (opts: { headers: Headers }) => Promise<unknown>;
 };
 
+const defaultAuthApi: AuthApi = {
+	signInEmail: (opts) =>
+		(defaultAuth.api.signInEmail as unknown as (o: typeof opts) => Promise<Response>)(opts),
+	signOut: (opts) =>
+		(defaultAuth.api.signOut as unknown as (o: typeof opts) => Promise<unknown>)(opts)
+};
+
 export async function signInAdmin(
 	email: string,
 	password: string,
-	authApi: AuthApi = {
-		signInEmail: (opts) =>
-			(defaultAuth.api.signInEmail as unknown as (o: typeof opts) => Promise<Response>)(opts),
-		signOut: (opts) =>
-			(defaultAuth.api.signOut as unknown as (o: typeof opts) => Promise<unknown>)(opts)
-	}
+	authApi: AuthApi = defaultAuthApi
 ): Promise<SignInResult> {
 	let response: Response;
 	try {

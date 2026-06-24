@@ -1,10 +1,10 @@
 import { db as defaultDb } from '$lib/server/db';
 import { events, eventTopics, topics, subtopics } from '$lib/server/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { redisService } from '$lib/server/redis';
+import { redisService, REDIS_PREFIXES } from '$lib/server/redis';
 import type { EventWithTopics } from '../../routes/+page.server';
 
-const CACHE_PREFIX = 'events';
+const CACHE_PREFIX = REDIS_PREFIXES.EVENTS;
 const CACHE_TTL_SECONDS = 86400;
 
 export type GetEventsParams = {
