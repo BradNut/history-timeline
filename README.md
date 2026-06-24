@@ -97,3 +97,11 @@ pnpm --filter history-timeline-web docker:up
 ```
 
 This builds the image and starts both the database and app containers. Environment variables are configured in `docker-compose.yml`.
+
+## License
+
+The source code in this repository is licensed under the [MIT License](./LICENSE).
+
+## Data & Attribution
+
+This application ingests historical event data from the Wikipedia "On This Day" API. That content is **not** covered by this project's MIT license — it is licensed by Wikipedia under [Creative Commons Attribution-ShareAlike (CC BY-SA)](https://creativecommons.org/licenses/by-sa/4.0/) and the [GNU Free Documentation License](https://www.gnu.org/licenses/fdl-1.3.html). Any reuse or redistribution of the ingested data must comply with those terms, including attribution to Wikipedia and share-alike requirements.

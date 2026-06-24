@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Badge } from "$lib/components/ui/badge";
 	import * as Dialog from "$lib/components/ui/dialog";
+	import { ExternalLink } from "@lucide/svelte";
 	import type { EventWithTopics } from "../../routes/+page.server";
 
 	type FullEvent = EventWithTopics & {
@@ -87,16 +88,35 @@
 			</p>
 		{/if}
 
-		{#if displayed.sourceUrl}
-			<a
-				href={displayed.sourceUrl}
-				target="_blank"
-				rel="noopener noreferrer"
-				class="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-sm"
-			>
-				View on Wikipedia →
-			</a>
-		{/if}
+		<div class="space-y-1.5 text-xs text-white/40">
+			{#if displayed.sourceUrl}
+				<a
+					href={displayed.sourceUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 text-sm"
+				>
+					View on Wikipedia
+					<ExternalLink class="size-3.5" aria-hidden="true" />
+				</a>
+			{/if}
+			<p>
+				Excerpt from
+				<a
+					href={displayed.sourceUrl ?? "https://www.wikipedia.org/"}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="underline underline-offset-2 hover:text-white/70">Wikipedia</a
+				>, which may have been shortened or modified. Licensed under
+				<a
+					href="https://creativecommons.org/licenses/by-sa/4.0/"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="underline underline-offset-2 hover:text-white/70"
+					>CC BY-SA 4.0</a
+				>.
+			</p>
+		</div>
 
 		{#if fullEvent?.related && fullEvent.related.length > 0}
 			<div class="border-t border-white/10 pt-4">

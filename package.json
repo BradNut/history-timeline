@@ -1,6 +1,7 @@
 {
   "name": "history-timeline",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "pnpm --filter history-timeline-web dev",
     "build": "pnpm --filter history-timeline-web build",

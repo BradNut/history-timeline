@@ -6,6 +6,7 @@
 	import TopicFilter from "$lib/components/TopicFilter.svelte";
 	import Timeline from "$lib/components/Timeline.svelte";
 	import EventDetailModal from "$lib/components/EventDetailModal.svelte";
+	import SourceAttribution from "$lib/components/SourceAttribution.svelte";
 	import type { EventWithTopics } from "./+page.server";
 
 	let { data }: { data: PageData } = $props();
@@ -72,6 +73,8 @@
 			}}
 		/>
 	</main>
+
+	<SourceAttribution />
 
 	{#if selectedEvent}
 		<EventDetailModal
