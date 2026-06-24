@@ -37,9 +37,15 @@
 				align-items: center;
 				justify-content: center;
 				border-radius: 9999px;
-				border: 1px solid rgba(255, 255, 255, 0.1);
-				background: rgba(255, 255, 255, 0.05);
+				border: 1px solid rgba(251, 191, 36, 0.2);
+				background: rgba(251, 191, 36, 0.1);
 				font-size: 1.75rem;
+			}
+			.quip {
+				margin: 0 0 1.5rem;
+				font-style: italic;
+				font-size: 0.875rem;
+				color: rgba(255, 255, 255, 0.3);
 			}
 			.status {
 				font-size: 3.75rem;
@@ -71,10 +77,11 @@
 	</head>
 	<body>
 		<div class="wrap">
-			<div class="badge">!</div>
+			<div class="badge">⌛</div>
 			<p class="status">%sveltekit.status%</p>
 			<p class="message">%sveltekit.error.message%</p>
-			<a class="button" href="/">Back to timeline</a>
+			<p class="quip">&ldquo;Every timeline has a few missing pages.&rdquo;</p>
+			<a class="button" href="/">Back to the timeline</a>
 		</div>
 	</body>
 </html>
