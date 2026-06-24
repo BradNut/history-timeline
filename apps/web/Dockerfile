@@ -1,36 +1,34 @@
 # ---- Build stage ----
+# Build context is the repo root (Coolify: Base Directory = /, Dockerfile = /apps/web/Dockerfile)
 FROM node:24-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.26.0 --activate
 
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+
+# Copy workspace manifests first for better layer caching
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/web/package.json apps/web/package.json
+
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build
-RUN pnpm prune --prod
+RUN pnpm --filter history-timeline-web build
 
 # ---- Runtime stage ----
 FROM node:24-alpine AS runtime
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@10.26.0 --activate
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
+# Copy the full built workspace; preserves pnpm's symlinked node_modules and keeps
+# devDependencies (drizzle-orm, postgres, tsx) needed by docker-entrypoint.sh at startup
+COPY --from=builder /app /app
 
-# Needed for programmatic migrate (migrate.ts) and tsx seed at startup
-COPY --from=builder /app/drizzle ./drizzle
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
-COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
+WORKDIR /app/apps/web
 
 # Create non-root user and make entrypoint executable
 RUN chmod +x docker-entrypoint.sh && \
