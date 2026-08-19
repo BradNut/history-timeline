@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import type { ActionData, PageData } from './$types';
+	import { enhance } from "$app/forms";
+	import type { ActionData, PageData } from "./$types";
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let submitting = $state(false);
 
-	const signUpHref = $derived(`/auth/sign-up?redirectTo=${encodeURIComponent(data.redirectTo)}`);
+	const signUpHref = $derived(
+		`/auth/sign-up?redirectTo=${encodeURIComponent(data.redirectTo)}`,
+	);
 </script>
 
 <svelte:head><title>Sign In — History Timeline</title></svelte:head>
@@ -28,13 +30,18 @@
 			<input type="hidden" name="redirectTo" value={data.redirectTo} />
 
 			{#if form?.error}
-				<div class="px-3 py-2 rounded bg-red-900/40 border border-red-500/30 text-red-400 text-sm">
+				<div
+					class="px-3 py-2 rounded bg-red-900/40 border border-red-500/30 text-red-400 text-sm"
+				>
 					{form.error}
 				</div>
 			{/if}
 
 			<div class="flex flex-col gap-1.5">
-				<label for="email" class="text-xs text-white/50 uppercase tracking-wider">Email</label>
+				<label
+					for="email"
+					class="text-xs text-white/50 uppercase tracking-wider">Email</label
+				>
 				<input
 					id="email"
 					name="email"
@@ -47,7 +54,10 @@
 			</div>
 
 			<div class="flex flex-col gap-1.5">
-				<label for="password" class="text-xs text-white/50 uppercase tracking-wider">Password</label>
+				<label
+					for="password"
+					class="text-xs text-white/50 uppercase tracking-wider">Password</label
+				>
 				<input
 					id="password"
 					name="password"
@@ -63,13 +73,17 @@
 				disabled={submitting}
 				class="mt-2 px-4 py-2 bg-white text-black rounded font-medium text-sm hover:bg-white/90 disabled:opacity-50 transition-colors"
 			>
-				{submitting ? 'Signing in…' : 'Sign In'}
+				{submitting ? "Signing in…" : "Sign In"}
 			</button>
 		</form>
 
-		<p class="mt-6 text-center text-sm text-white/50">
-			Don't have an account?
-			<a href={signUpHref} class="text-white underline underline-offset-2">Sign Up</a>
-		</p>
+		{#if data.registrationEnabled}
+			<p class="mt-6 text-center text-sm text-white/50">
+				Don't have an account?
+				<a href={signUpHref} class="text-white underline underline-offset-2"
+					>Sign Up</a
+				>
+			</p>
+		{/if}
 	</div>
 </div>
