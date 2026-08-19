@@ -49,16 +49,19 @@ const defaultDeps: LoadDeps = {
 
 export function _createLoad(deps: LoadDeps): PageServerLoad {
 	return async ({ url, locals }) => {
-		if (!locals.user) {
-			return { view: 'landing' };
-		}
-
 		const dateParam = url.searchParams.get('date');
-		const granularity = (url.searchParams.get('granularity') ?? 'today') as 'today' | 'week' | 'month';
+		const rawGranularity = url.searchParams.get('granularity') ?? 'today';
+		const validGranularity: 'today' | 'week' | 'month' =
+			rawGranularity === 'week' || rawGranularity === 'month' ? rawGranularity : 'today';
 		const topicSlug = url.searchParams.get('topic');
 
+		if (!locals.user) {
+			const redirectTo = `${url.pathname}${url.search}`;
+			return { view: 'landing', redirectTo, date: dateParam, granularity: validGranularity, topicSlug };
+		}
+
 		const anchorDate = dateParam ? new Date(dateParam) : new Date();
-		const { months, days } = getDateRange(anchorDate, granularity);
+		const { months, days } = getDateRange(anchorDate, validGranularity);
 
 		const allTopics = await deps.getTopics();
 
@@ -70,7 +73,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 
 		let eventList = await deps.getEvents({ months, days, topicIdFilter });
 
-		if (granularity === 'today' && eventList.length === 0) {
+		if (validGranularity === 'today' && eventList.length === 0) {
 			const month = anchorDate.getMonth() + 1;
 			const day = anchorDate.getDate();
 			const runningCount = await deps.getRunningImportCount(month, day);
@@ -84,7 +87,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 			view: 'timeline',
 			events: eventList,
 			anchorDate: anchorDate.toISOString().split('T')[0],
-			granularity,
+			granularity: validGranularity,
 			topicSlug,
 			topics: allTopics
 		};

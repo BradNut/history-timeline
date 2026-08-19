@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EventWithTopics } from './+page.server';
 import { _createLoad } from './+page.server';
 
@@ -68,7 +68,35 @@ describe('load — authentication branch', () => {
 		const load = _createLoad(deps);
 		const result = await load({ url: makeUrl(), locals: makeLocals() } as never);
 
-		expect(result).toEqual({ view: 'landing' });
+		expect(result).toEqual({
+			view: 'landing',
+			redirectTo: '/',
+			date: null,
+			granularity: 'today',
+			topicSlug: null
+		});
+		expect(deps.getTopics).not.toHaveBeenCalled();
+		expect(deps.getEvents).not.toHaveBeenCalled();
+		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
+		expect(deps.runImportForDate).not.toHaveBeenCalled();
+	});
+
+	it('preserves incoming timeline query params on the landing view', async () => {
+		const deps = makeDeps();
+
+		const load = _createLoad(deps);
+		const result = await load({
+			url: makeUrl({ date: '2024-07-20', granularity: 'week', topic: 'historical' }),
+			locals: makeLocals()
+		} as never);
+
+		expect(result).toEqual({
+			view: 'landing',
+			redirectTo: '/?date=2024-07-20&granularity=week&topic=historical',
+			date: '2024-07-20',
+			granularity: 'week',
+			topicSlug: 'historical'
+		});
 		expect(deps.getTopics).not.toHaveBeenCalled();
 		expect(deps.getEvents).not.toHaveBeenCalled();
 		expect(deps.getRunningImportCount).not.toHaveBeenCalled();

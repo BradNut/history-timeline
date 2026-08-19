@@ -14,6 +14,17 @@
 
 	let timelineData = $derived(data.view === "timeline" ? data : null);
 
+	let landingData = $derived(
+		data.view === "landing"
+			? {
+					redirectTo: data.redirectTo,
+					date: data.date,
+					granularity: data.granularity,
+					topicSlug: data.topicSlug,
+				}
+			: null,
+	);
+
 	let selectedEvent = $state<EventWithTopics | null>(null);
 	let modalOpen = $state(false);
 	let highlightedEventId = $state<number | undefined>(undefined);
@@ -42,8 +53,8 @@
 	<title>History Timeline</title>
 </svelte:head>
 
-{#if data.view === "landing"}
-	<LandingPage />
+{#if landingData}
+	<LandingPage data={landingData} />
 {:else if timelineData}
 	<div class="min-h-screen bg-[#0a0a0a] text-white">
 		<header
