@@ -2,10 +2,10 @@
 set -e
 
 echo "Running database migrations..."
-node_modules/.bin/tsx src/lib/server/db/migrate.ts
+DB_MIGRATING=true node_modules/.bin/tsx src/lib/server/databases/postgres/migrate.ts
 
 echo "Running database seed..."
-node_modules/.bin/tsx src/lib/server/db/seed.ts
+DB_SEEDING=true node_modules/.bin/tsx src/lib/server/databases/postgres/seed.ts
 
 echo "Starting application..."
 exec node build
