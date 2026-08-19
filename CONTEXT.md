@@ -32,6 +32,9 @@ An authenticated regular user. User-facing features (e.g., bookmarking) are v2. 
 ### Timeline View
 The primary UI for browsing Events. A **vertical scroll layout** — year labels on the left, event cards on the right — built with `shadcn-svelte-timeline`. Controlled by two independent UI elements: an **Anchor Date** scrubber and a **Granularity** selector. Events are grouped by year in descending order.
 
+### Landing Page
+The anonymous entry point to the site. A minimal shell shown when a visitor is not authenticated. It does not query Events, run the Import pipeline, or hit Redis — it only renders the public landing UI.
+
 ### UI Stack
 TailwindCSS + shadcn-svelte components. Dark editorial visual aesthetic. `shadcn-svelte-timeline` for the Timeline View. Svelte 5 runes API throughout.
 

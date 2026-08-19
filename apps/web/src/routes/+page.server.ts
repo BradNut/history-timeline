@@ -1,8 +1,8 @@
+import { and, count, eq, gt } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { topics, importLogs } from '$lib/server/db/schema';
+import { importLogs, topics } from '$lib/server/db/schema';
 import { getEvents } from '$lib/server/events';
 import { runImportForDate } from '$lib/server/import-actions';
-import { and, eq, gt, count } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
 export type EventWithTopics = {
@@ -31,7 +31,7 @@ const RUNNING_IMPORT_WINDOW_MS = 5 * 60 * 1000;
 const defaultDeps: LoadDeps = {
 	getTopics: () => db.select().from(topics).orderBy(topics.name),
 	getEvents,
-	getRunningImportCount: async (month, day) => {
+	getRunningImportCount: async (_month, _day) => {
 		const since = new Date(Date.now() - RUNNING_IMPORT_WINDOW_MS);
 		const rows = await db
 			.select({ value: count() })
@@ -48,7 +48,11 @@ const defaultDeps: LoadDeps = {
 };
 
 export function _createLoad(deps: LoadDeps): PageServerLoad {
-	return async ({ url }) => {
+	return async ({ url, locals }) => {
+		if (!locals.user) {
+			return { view: 'landing' };
+		}
+
 		const dateParam = url.searchParams.get('date');
 		const granularity = (url.searchParams.get('granularity') ?? 'today') as 'today' | 'week' | 'month';
 		const topicSlug = url.searchParams.get('topic');
@@ -77,6 +81,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 		}
 
 		return {
+			view: 'timeline',
 			events: eventList,
 			anchorDate: anchorDate.toISOString().split('T')[0],
 			granularity,

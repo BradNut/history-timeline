@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { _createLoad } from './+page.server';
 import type { EventWithTopics } from './+page.server';
+import { _createLoad } from './+page.server';
 
 const TODAY_MONTH = new Date().getMonth() + 1;
 const TODAY_DAY = new Date().getDate();
@@ -21,6 +21,8 @@ const FRESH_EVENTS: EventWithTopics[] = [
 	}
 ];
 
+const STUB_USER = { id: 'user-1', email: 'test@example.com' };
+
 function makeUrl(params: Record<string, string> = {}) {
 	const url = new URL('http://localhost/');
 	for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
@@ -37,6 +39,43 @@ function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}) {
 	};
 }
 
+function makeLocals(user?: typeof STUB_USER) {
+	return { user } as App.Locals;
+}
+
+describe('load — authentication branch', () => {
+	it('returns timeline-shaped data when locals.user is present', async () => {
+		const deps = makeDeps({
+			getEvents: vi.fn().mockResolvedValue(FRESH_EVENTS)
+		});
+
+		const load = _createLoad(deps);
+		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+
+		expect(result).toMatchObject({
+			view: 'timeline',
+			events: FRESH_EVENTS,
+			granularity: 'today',
+			topicSlug: null,
+			topics: []
+		});
+		expect(deps.getEvents).toHaveBeenCalled();
+	});
+
+	it('returns landing-shaped data when locals.user is absent', async () => {
+		const deps = makeDeps();
+
+		const load = _createLoad(deps);
+		const result = await load({ url: makeUrl(), locals: makeLocals() } as never);
+
+		expect(result).toEqual({ view: 'landing' });
+		expect(deps.getTopics).not.toHaveBeenCalled();
+		expect(deps.getEvents).not.toHaveBeenCalled();
+		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
+		expect(deps.runImportForDate).not.toHaveBeenCalled();
+	});
+});
+
 describe('load — auto-import behaviour', () => {
 	it('triggers an import and returns fresh events when today has no events and no import is running', async () => {
 		const deps = makeDeps({
@@ -47,11 +86,10 @@ describe('load — auto-import behaviour', () => {
 		});
 
 		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl() } as never);
+		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
 
-		const data = result as { events: EventWithTopics[] };
 		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
-		expect(data.events).toEqual(FRESH_EVENTS);
+		expect(result).toMatchObject({ view: 'timeline', events: FRESH_EVENTS });
 	});
 
 	it('skips the import when a running import already exists', async () => {
@@ -60,7 +98,7 @@ describe('load — auto-import behaviour', () => {
 		});
 
 		const load = _createLoad(deps);
-		await load({ url: makeUrl() } as never);
+		await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
 
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
@@ -71,7 +109,7 @@ describe('load — auto-import behaviour', () => {
 		});
 
 		const load = _createLoad(deps);
-		await load({ url: makeUrl() } as never);
+		await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
 
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
@@ -80,7 +118,7 @@ describe('load — auto-import behaviour', () => {
 		const deps = makeDeps();
 
 		const load = _createLoad(deps);
-		await load({ url: makeUrl({ granularity: 'week' }) } as never);
+		await load({ url: makeUrl({ granularity: 'week' }), locals: makeLocals(STUB_USER) } as never);
 
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
