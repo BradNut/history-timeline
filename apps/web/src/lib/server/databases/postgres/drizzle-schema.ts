@@ -1,15 +1,15 @@
+import { relations } from 'drizzle-orm';
 import {
+	boolean,
+	date,
+	index,
+	integer,
 	pgTable,
 	serial,
-	integer,
 	text,
-	date,
-	boolean,
 	timestamp,
 	unique,
-	index
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
 
 export const topics = pgTable('topics', {
 	id: serial('id').primaryKey(),
@@ -27,6 +27,13 @@ export const subtopics = pgTable('subtopics', {
 	slug: text('slug').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull()
 }, (t) => [unique().on(t.topicId, t.slug)]);
+
+const topicAndSubtopicColumns = {
+	topicId: integer('topic_id')
+		.notNull()
+		.references(() => topics.id, { onDelete: 'cascade' }),
+	subtopicId: integer('subtopic_id').references(() => subtopics.id, { onDelete: 'set null' })
+};
 
 export const events = pgTable('events', {
 	id: serial('id').primaryKey(),
@@ -53,19 +60,13 @@ export const eventTopics = pgTable('event_topics', {
 	eventId: integer('event_id')
 		.notNull()
 		.references(() => events.id, { onDelete: 'cascade' }),
-	topicId: integer('topic_id')
-		.notNull()
-		.references(() => topics.id, { onDelete: 'cascade' }),
-	subtopicId: integer('subtopic_id').references(() => subtopics.id, { onDelete: 'set null' })
+	...topicAndSubtopicColumns
 }, (t) => [unique().on(t.eventId, t.topicId, t.subtopicId).nullsNotDistinct()]);
 
 export const taxonomyMappings = pgTable('taxonomy_mappings', {
 	id: serial('id').primaryKey(),
 	rawCategory: text('raw_category').notNull().unique(),
-	topicId: integer('topic_id')
-		.notNull()
-		.references(() => topics.id, { onDelete: 'cascade' }),
-	subtopicId: integer('subtopic_id').references(() => subtopics.id, { onDelete: 'set null' }),
+	...topicAndSubtopicColumns,
 	createdAt: timestamp('created_at').defaultNow().notNull()
 });
 
