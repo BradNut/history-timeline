@@ -45,7 +45,24 @@ describe('sign-in load', () => {
 			locals: {}
 		} as never);
 
+		expect(result).toEqual({ redirectTo: '/', registrationEnabled: true });
+	});
+});
+
+describe('sign-in load registration flag', () => {
+	it('includes registrationEnabled: true when registration is enabled', async () => {
+		const load = _createLoad({ isRegistrationEnabled: () => true });
+		const result = await load({ url: makeUrl(), locals: {} } as never);
+
+		expect(result).toEqual({ redirectTo: '/', registrationEnabled: true });
+	});
+
+	it('omits the registrationEnabled flag when registration is disabled', async () => {
+		const load = _createLoad({ isRegistrationEnabled: () => false });
+		const result = await load({ url: makeUrl(), locals: {} } as never);
+
 		expect(result).toEqual({ redirectTo: '/' });
+		expect(result).not.toHaveProperty('registrationEnabled');
 	});
 });
 

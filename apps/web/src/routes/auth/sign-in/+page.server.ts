@@ -1,15 +1,21 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { signIn } from '$lib/server/auth-actions';
 import { resolveSafeRedirect } from '$lib/server/auth-redirect';
+import { isRegistrationEnabled } from '$lib/server/registration';
 import type { Actions, PageServerLoad } from './$types';
 
 type SignInDeps = {
 	signIn: typeof signIn;
 };
 
-const defaultDeps: SignInDeps = { signIn };
+type SignInLoadDeps = {
+	isRegistrationEnabled?: typeof isRegistrationEnabled;
+};
 
-export function _createLoad(): PageServerLoad {
+const defaultDeps: SignInDeps = { signIn };
+const defaultLoadDeps: SignInLoadDeps = { isRegistrationEnabled };
+
+export function _createLoad(deps: SignInLoadDeps = defaultLoadDeps): PageServerLoad {
 	return ({ url, locals }) => {
 		const redirectTo = resolveSafeRedirect(url.searchParams.get('redirectTo'));
 
@@ -17,7 +23,9 @@ export function _createLoad(): PageServerLoad {
 			redirect(303, redirectTo);
 		}
 
-		return { redirectTo };
+		const registrationEnabled = (deps.isRegistrationEnabled ?? isRegistrationEnabled)();
+
+		return registrationEnabled ? { redirectTo, registrationEnabled: true } : { redirectTo };
 	};
 }
 

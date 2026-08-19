@@ -133,4 +133,37 @@ describe('sign-up actions', () => {
 		expect(result.status).toBe(400);
 		expect(result.data).toEqual({ error: 'Unable to create account' });
 	});
+
+	it('rejects sign-up with a disabled message when registration is disabled', async () => {
+		const signUp = vi.fn();
+		const actions = _createActions({ signUp, isRegistrationEnabled: () => false });
+
+		const request = new Request('http://localhost/auth/sign-up', {
+			method: 'POST',
+			body: makeFormData({ name: 'Ada Lovelace', email: 'ada@example.com', password: 'correct' })
+		});
+
+		const result = (await actions.default({ request, url: makeUrl() } as never)) as {
+			status: number;
+			data: { error: string };
+		};
+
+		expect(result.status).toBe(403);
+		expect(result.data).toEqual({ error: 'Registration is disabled' });
+		expect(signUp).not.toHaveBeenCalled();
+	});
+
+	it('allows sign-up when registration is explicitly enabled', async () => {
+		const signUp = vi.fn().mockResolvedValue({ type: 'redirect', location: '/' });
+		const actions = _createActions({ signUp, isRegistrationEnabled: () => true });
+
+		const request = new Request('http://localhost/auth/sign-up', {
+			method: 'POST',
+			body: makeFormData({ name: 'Ada Lovelace', email: 'ada@example.com', password: 'correct' })
+		});
+
+		await catchRedirect(() => actions.default({ request, url: makeUrl() } as never));
+
+		expect(signUp).toHaveBeenCalledWith('Ada Lovelace', 'ada@example.com', 'correct', '/');
+	});
 });

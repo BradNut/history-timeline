@@ -1,13 +1,15 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { signUp } from '$lib/server/auth-actions';
 import { resolveSafeRedirect } from '$lib/server/auth-redirect';
+import { isRegistrationEnabled } from '$lib/server/registration';
 import type { Actions, PageServerLoad } from './$types';
 
 type SignUpDeps = {
 	signUp: typeof signUp;
+	isRegistrationEnabled?: typeof isRegistrationEnabled;
 };
 
-const defaultDeps: SignUpDeps = { signUp };
+const defaultDeps: SignUpDeps = { signUp, isRegistrationEnabled };
 
 export function _createLoad(): PageServerLoad {
 	return ({ url, locals }) => {
@@ -24,6 +26,11 @@ export function _createLoad(): PageServerLoad {
 export function _createActions(deps: SignUpDeps = defaultDeps): Actions {
 	return {
 		default: async ({ request, url }) => {
+			const registrationEnabled = (deps.isRegistrationEnabled ?? isRegistrationEnabled)();
+			if (!registrationEnabled) {
+				return fail(403, { error: 'Registration is disabled' });
+			}
+
 			const data = await request.formData();
 			const name = String(data.get('name') ?? '');
 			const email = String(data.get('email') ?? '');
