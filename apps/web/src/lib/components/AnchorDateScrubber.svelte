@@ -21,7 +21,7 @@
 	});
 
 	function formatLabel(dateStr: string, g: Granularity): string {
-		const d = new Date(dateStr + "T12:00:00");
+		const d = new Date(`${dateStr}T12:00:00`);
 		const fmt = new Intl.DateTimeFormat("en-US", {
 			month: "long",
 			day: "numeric",
@@ -48,7 +48,7 @@
 
 	function shift(direction: -1 | 1) {
 		if (isNavigating) return;
-		const d = new Date(anchorDate + "T12:00:00");
+		const d = new Date(`${anchorDate}T12:00:00`);
 		const delta =
 			direction *
 			(granularity === "today" ? 1 : granularity === "week" ? 7 : 30);

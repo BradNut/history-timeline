@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { Hourglass, House } from "@lucide/svelte";
 	import { page } from "$app/state";
 	import { Button } from "$lib/components/ui/button";
-	import { Hourglass, House } from "@lucide/svelte";
 
 	const status = $derived(page.status);
 	const message = $derived(page.error?.message ?? "Something went wrong");

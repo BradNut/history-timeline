@@ -1,7 +1,7 @@
-import { db as defaultDb } from '$lib/server/db';
-import { events, eventTopics, topics, subtopics } from '$lib/server/db/schema';
+import { db as defaultDb } from '$lib/server/databases/postgres';
+import { events, eventTopics, topics, subtopics } from '$lib/server/databases/postgres/drizzle-schema';
 import { and, eq, inArray } from 'drizzle-orm';
-import { redisService, REDIS_PREFIXES } from '$lib/server/redis';
+import { redisService, REDIS_PREFIXES } from '$lib/server/databases/redis/redis';
 import type { EventWithTopics } from '../../routes/+page.server';
 
 const CACHE_PREFIX = REDIS_PREFIXES.EVENTS;
@@ -34,8 +34,8 @@ function buildCacheKey(params: GetEventsParams): string {
 	return `${months}-${days}-${topic}`;
 }
 
-async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> {
-	const rows = await defaultDb
+export function eventsWithTopicsQuery() {
+	return defaultDb
 		.select({
 			id: events.id,
 			title: events.title,
@@ -55,7 +55,11 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
 		.from(events)
 		.leftJoin(eventTopics, eq(eventTopics.eventId, events.id))
 		.leftJoin(topics, eq(topics.id, eventTopics.topicId))
-		.leftJoin(subtopics, eq(subtopics.id, eventTopics.subtopicId))
+		.leftJoin(subtopics, eq(subtopics.id, eventTopics.subtopicId));
+}
+
+async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> {
+	const rows = await eventsWithTopicsQuery()
 		.where(
 			and(
 				inArray(events.month, params.months),
@@ -83,12 +87,15 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
 			});
 		}
 		if (row.topicId && row.topicName && row.topicSlug) {
-			eventsMap.get(row.id)!.topics.push({
-				topicId: row.topicId,
-				topicName: row.topicName,
-				topicSlug: row.topicSlug,
-				subtopicName: row.subtopicName ?? null
-			});
+			const event = eventsMap.get(row.id);
+			if (event) {
+				event.topics.push({
+					topicId: row.topicId,
+					topicName: row.topicName,
+					topicSlug: row.topicSlug,
+					subtopicName: row.subtopicName ?? null
+				});
+			}
 		}
 	}
 
@@ -97,21 +104,23 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
 
 export async function getEvents(
 	params: GetEventsParams,
-	deps: Deps = {
+	deps?: Deps
+): Promise<EventWithTopics[]> {
+	const resolvedDeps = deps ?? {
 		cache: redisService,
 		db: { query: queryEvents }
-	}
-): Promise<EventWithTopics[]> {
+	};
+
 	const key = buildCacheKey(params);
 
-	const cached = await deps.cache.get({ prefix: CACHE_PREFIX, key });
+	const cached = await resolvedDeps.cache.get({ prefix: CACHE_PREFIX, key });
 	if (cached) {
 		return JSON.parse(cached) as EventWithTopics[];
 	}
 
-	const result = await deps.db.query(params);
+	const result = await resolvedDeps.db.query(params);
 
-	await deps.cache.setWithExpiry({
+	await resolvedDeps.cache.setWithExpiry({
 		prefix: CACHE_PREFIX,
 		key,
 		value: JSON.stringify(result),

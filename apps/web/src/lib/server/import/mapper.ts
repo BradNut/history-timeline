@@ -1,5 +1,5 @@
-import { db } from '$lib/server/db';
-import { taxonomyMappings, unmappedCategories, topics, subtopics } from '$lib/server/db/schema';
+import { db } from '$lib/server/databases';
+import { taxonomyMappings, unmappedCategories, topics, subtopics } from '$lib/server/databases/schema';
 import { eq } from 'drizzle-orm';
 import { classifyCategory } from './classify';
 

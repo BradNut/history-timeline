@@ -1,6 +1,6 @@
 services:
-  db:
-    image: postgres:16-alpine
+  postgres:
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: root
@@ -17,13 +17,44 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
 
+  mailpit:
+    image: axllent/mailpit
+    volumes:
+      - mailpit_data:/data
+    ports:
+      - 8025:8025
+      - 1025:1025
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    network_mode: host
+
+  spotlight:
+    image: ghcr.io/getsentry/spotlight:latest
+    ports:
+      - "8969:8969"
+    network_mode: host
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "4318:4318"    # OTLP HTTP receiver
+      - "4317:4317"    # OTLP gRPC receiver
+    network_mode: host
+
 volumes:
   postgres_data:
   redis_data:
+  mailpit_data:

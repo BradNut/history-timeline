@@ -12,7 +12,7 @@ async function fetchWithRetry(url: string, attempt = 0): Promise<Response> {
 	});
 
 	if ((res.status === 429 || res.status === 503) && attempt < 3) {
-		const delay = 1000 * Math.pow(2, attempt);
+		const delay = 1000 * 2 ** attempt;
 		await new Promise((r) => setTimeout(r, delay));
 		return fetchWithRetry(url, attempt + 1);
 	}

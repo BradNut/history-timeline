@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Historical",
+    "slug": "historical",
+    "subtopics": ["Wars", "Politics", "Exploration", "Revolution"]
+  },
+  {
+    "name": "Musical",
+    "slug": "musical",
+    "subtopics": ["Jazz", "Classical", "Rock", "Pop"]
+  },
+  {
+    "name": "Scientific",
+    "slug": "scientific",
+    "subtopics": ["Physics", "Biology", "Chemistry", "Astronomy"]
+  },
+  {
+    "name": "Cultural",
+    "slug": "cultural",
+    "subtopics": ["Art", "Literature", "Film", "Theatre"]
+  },
+  {
+    "name": "Political",
+    "slug": "political",
+    "subtopics": ["Elections", "Treaties", "Legislation", "Diplomacy"]
+  },
+  {
+    "name": "Sporting",
+    "slug": "sporting",
+    "subtopics": ["Football", "Athletics", "Tennis", "Olympics"]
+  }
+]

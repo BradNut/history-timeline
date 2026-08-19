@@ -46,3 +46,37 @@ An Import Run triggered automatically by the Timeline View when the `Today` gran
 
 ### Detail View
 A modal/drawer that opens when a user clicks an Event on the timeline. Shows the full Event content including description, topic tags, source link, image (if available), and a "related events" section (other Events on the same Anchor Date).
+
+### Topic Window
+The fixed Anchor Date **minus 1 day through plus 1 day** range used to scope which Topics appear in the Topic Filter. Independent of Granularity — even when the user has selected `Week` or `Month`, the Topic Filter only shows Topics with at least one Event in the 3-day Topic Window around the Anchor Date. Exists to avoid showing dead-end filters (Topics with zero nearby Events), not primarily as a performance optimization.
+
+## SvelteKit & Workspace Triage
+
+This section captures the ways `history-timeline` currently diverges from the SvelteKit/pnpm conventions in `secondchancepuzzles` and `personal-website-sveltekit`.
+
+### Config style
+
+- `apps/web/vite.config.ts` passes the SvelteKit config (`adapter`, `compilerOptions`, `typescript`) directly to the `sveltekit` Vite plugin. This is valid since SvelteKit 2.62.0 and matches `personal-website-sveltekit`; `secondchancepuzzles` uses a separate `svelte.config.js`. Both are acceptable, but the project is currently inconsistent with the split-config style.
+
+### Dependencies / workspace hygiene
+
+- `apps/web/package.json` puts `tsx`, `better-auth`, `drizzle-orm`, and `postgres` in `devDependencies`. These are runtime server packages and should be in `dependencies`.
+- Root `package.json` lacks `type`, `engines`, and `packageManager` (the reference projects set all three).
+- Root `pnpm-workspace.yaml` has `allowBuilds` entries for `@prisma/client` and `better-sqlite3` that are not used anywhere.
+
+### Scripts / typecheck
+
+- Root `typecheck` script fails because `apps/web` exposes `check`, not `typecheck`.
+
+### SvelteKit specifics
+
+- `app.html` uses a hardcoded `<html class="dark">` instead of a theme-detection script.
+- `tsconfig.json` does not include `types: ["node"]` or `verbatimModuleSyntax`, which the reference projects set.
+- `apps/web` uses Biome for linting and formatting (matching the reference projects).
+- No Playwright / E2E test setup yet (the reference projects have it).
+- `vitest.config.ts` aliases `$env/dynamic/private`, `$app/server`, and `$app/environment` to test mocks; this is a divergence from the reference test setups.
+
+### Tooling decisions to keep in mind
+
+- Do not create a `svelte.config.js` unless the project is intentionally migrating to the split-config style used by `secondchancepuzzles`.
+- `src/lib/server/env.ts` validates `process.env` with Zod v4, while `src/lib/server/db/index.ts` reads `$env/dynamic/private` directly.

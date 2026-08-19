@@ -1,5 +1,5 @@
-import { db as defaultDb } from '$lib/server/db';
-import { taxonomyMappings, unmappedCategories, events, eventTopics } from '$lib/server/db/schema';
+import { db as defaultDb } from '$lib/server/databases';
+import { taxonomyMappings, unmappedCategories, events, eventTopics } from '$lib/server/databases/schema';
 import { eq, arrayContains } from 'drizzle-orm';
 
 export type ResolveParams = {

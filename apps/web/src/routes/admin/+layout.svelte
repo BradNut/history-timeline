@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { enhance } from "$app/forms";
 	import { ArrowLeft } from "@lucide/svelte";
+	import type { Snippet } from "svelte";
 	import type { LayoutServerData } from "./$types";
 
-	let { children, data }: { children: any; data: LayoutServerData } = $props();
+	let { children, data }: { children: Snippet; data: LayoutServerData } =
+		$props();
 </script>
 
 <div class="min-h-screen bg-[#0a0a0a] text-white">

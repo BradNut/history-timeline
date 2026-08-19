@@ -1,6 +1,7 @@
-import { db } from '$lib/server/db';
-import { events, eventTopics, importLogs } from '$lib/server/db/schema';
+import { db } from '$lib/server/databases';
+import { events, eventTopics, importLogs } from '$lib/server/databases/schema';
 import { eq } from 'drizzle-orm';
+import type { InferSelectModel } from 'drizzle-orm';
 import { mapCategories } from './mapper';
 import type { WikipediaEvent } from './types';
 
@@ -8,7 +9,7 @@ export async function upsertEvents(
 	wikiEvents: WikipediaEvent[],
 	month: number,
 	day: number,
-	type: string = 'daily'
+	type = 'daily'
 ): Promise<{ eventsUpserted: number; unmappedCount: number }> {
 	const logEntry = await db
 		.insert(importLogs)
@@ -39,7 +40,7 @@ export async function upsertEvents(
 					and(eqFn(e.title, title), eqFn(e.year, evt.year), eqFn(e.month, month), eqFn(e.day, day))
 			});
 
-			let upserted;
+			let upserted: InferSelectModel<typeof events> | undefined;
 			if (existing) {
 				[upserted] = await db
 					.update(events)

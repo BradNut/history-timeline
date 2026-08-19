@@ -5,4 +5,4 @@ export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
 
-export type { WithElementRef } from 'bits-ui';
+export type { WithElementRef, WithoutChildrenOrChild } from 'bits-ui';

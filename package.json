@@ -1,15 +1,31 @@
 {
   "name": "history-timeline",
+  "version": "0.0.1",
   "private": true,
   "license": "MIT",
+  "type": "module",
   "scripts": {
     "dev": "pnpm --filter history-timeline-web dev",
     "build": "pnpm --filter history-timeline-web build",
     "preview": "pnpm --filter history-timeline-web preview",
-    "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "check": "pnpm --filter history-timeline-web check",
+    "check:watch": "pnpm --filter history-timeline-web check:watch",
+    "lint": "pnpm --filter history-timeline-web lint",
+    "format": "pnpm --filter history-timeline-web format",
+    "test": "pnpm --filter history-timeline-web test",
+    "test:watch": "pnpm --filter history-timeline-web test:watch",
+    "db:start": "pnpm --filter history-timeline-web db:start",
+    "db:push": "pnpm --filter history-timeline-web db:push",
+    "db:generate": "pnpm --filter history-timeline-web db:generate",
+    "db:migrate": "pnpm --filter history-timeline-web db:migrate",
+    "db:seed": "pnpm --filter history-timeline-web db:seed",
+    "db:studio": "pnpm --filter history-timeline-web db:studio"
   },
   "devDependencies": {
-    "typescript": "^5.6.3"
-  }
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.1.1"
 }

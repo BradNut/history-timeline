@@ -15,7 +15,7 @@
 
 	let {
 		event,
-		open = $bindable(false),
+		open: isOpen = $bindable(false),
 		onrelateselect,
 	}: {
 		event: EventWithTopics;
@@ -32,7 +32,7 @@
 	let loading = $state(true);
 
 	$effect(() => {
-		if (!open) return;
+		if (!isOpen) return;
 		loading = true;
 		fullEvent = null;
 		fetch(`/api/events/${event.id}`)
@@ -50,7 +50,7 @@
 	const displayed = $derived(fullEvent ?? event);
 </script>
 
-<Dialog.Root bind:open>
+<Dialog.Root bind:open={isOpen}>
 	<Dialog.Content
 		class="max-w-lg max-h-[85vh] overflow-y-auto bg-[#111] border-white/15"
 	>
@@ -127,9 +127,10 @@
 					{#each fullEvent.related as rel}
 						<li>
 							<button
+								type="button"
 								class="w-full text-left text-white/60 hover:text-white text-sm cursor-pointer transition-colors"
 								onclick={() => {
-									open = false;
+									isOpen = false;
 									onrelateselect?.(rel);
 								}}
 							>

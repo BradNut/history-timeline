@@ -18,7 +18,8 @@
 		const map = new Map<number, EventWithTopics[]>();
 		for (const evt of events) {
 			if (!map.has(evt.year)) map.set(evt.year, []);
-			map.get(evt.year)!.push(evt);
+			const yearEvents = map.get(evt.year);
+			if (yearEvents) yearEvents.push(evt);
 		}
 		return [...map.entries()]
 			.sort(([a], [b]) => b - a)
@@ -65,6 +66,7 @@
 					<div class="flex-1 pl-8 space-y-4">
 						{#each group.events as evt}
 							<button
+								type="button"
 								id="event-{evt.id}"
 								class="w-full text-left group cursor-pointer"
 								onclick={() => onselect(evt)}
