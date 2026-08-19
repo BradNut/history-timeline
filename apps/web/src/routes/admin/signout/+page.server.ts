@@ -6,6 +6,6 @@ export const actions: Actions = {
 	default: async ({ request, cookies }) => {
 		await auth.api.signOut({ headers: request.headers }).catch(() => {});
 		cookies.delete('better-auth.session_token', { path: '/' });
-		redirect(303, '/admin/login');
+		redirect(303, '/auth/sign-in');
 	}
 };
