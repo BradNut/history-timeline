@@ -16,28 +16,28 @@ type DatabaseConfig = {
 };
 
 function getDatabaseConfig(): DatabaseConfig {
-  if (process.env.DATABASE_USER) {
+  const url = process.env.DATABASE_URL;
+  if (url) {
+    const parsed = new URL(url);
     return {
-      user: process.env.DATABASE_USER,
-      password: process.env.DATABASE_PASSWORD ?? '',
-      host: process.env.DATABASE_HOST ?? 'localhost',
-      port: Number(process.env.DATABASE_PORT) || 5432,
-      database: process.env.DATABASE_DB ?? '',
+      user: decodeURIComponent(parsed.username),
+      password: decodeURIComponent(parsed.password),
+      host: parsed.hostname,
+      port: Number(parsed.port) || drizzleSettings.defaults.databasePort,
+      database: decodeURIComponent(parsed.pathname.slice(1)),
     };
   }
 
-  const url = process.env.DATABASE_URL;
-  if (!url) {
+  if (!process.env.DATABASE_USER) {
     throw new Error('DATABASE_URL or individual DATABASE_* variables must be set');
   }
 
-  const parsed = new URL(url);
   return {
-    user: decodeURIComponent(parsed.username),
-    password: decodeURIComponent(parsed.password),
-    host: parsed.hostname,
-    port: Number(parsed.port) || 5432,
-    database: decodeURIComponent(parsed.pathname.slice(1)),
+    user: process.env.DATABASE_USER,
+    password: process.env.DATABASE_PASSWORD ?? '',
+    host: process.env.DATABASE_HOST ?? drizzleSettings.defaults.databaseHost,
+    port: Number(process.env.DATABASE_PORT) || drizzleSettings.defaults.databasePort,
+    database: process.env.DATABASE_DB ?? '',
   };
 }
 

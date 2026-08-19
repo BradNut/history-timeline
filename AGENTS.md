@@ -64,7 +64,7 @@ SvelteKit web app in a pnpm workspace. `apps/web` is the only app right now.
 - **Root `package.json`**: missing `type`, `engines`, and `packageManager` (other projects set these).
 - **Root `typecheck` script**: references `pnpm -r typecheck`, but `apps/web` has `check`, not `typecheck`. `pnpm typecheck` at root fails.
 - **Dependencies**: `apps/web/package.json` puts `tsx`, `better-auth`, `drizzle-orm`, and `postgres` in `devDependencies`. These are runtime server packages and should be in `dependencies`.
-- **pnpm-workspace.yaml**: `allowBuilds` lists `@prisma/client` and `better-sqlite3`, which are not used anywhere.
+- **pnpm-workspace.yaml**: `allowBuilds` lists `@prisma/client` and `better-sqlite3` as `false`. These are transitive deps of `@better-auth/cli` (which bundles every ORM adapter) and optional peers of `drizzle-orm`; the app uses `drizzleAdapter(db, { provider: 'pg' })`. Keep them disabled so their install scripts never run.
 - **Build tool**: Biome is used for linting and formatting, matching `secondchancepuzzles` and `personal-website-sveltekit`.
 - **E2E tests**: no Playwright setup yet; reference projects use Playwright.
 - **tsconfig**: `apps/web/tsconfig.json` does not include `types: ["node"]` or `verbatimModuleSyntax` (both reference projects differ here).
