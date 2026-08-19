@@ -68,6 +68,22 @@ describe('sign-in actions', () => {
 		expect(err.location).toBe('/');
 	});
 
+	it('redirects an admin to /admin when sign-in succeeds', async () => {
+		const signIn = vi.fn().mockResolvedValue({ type: 'redirect', location: '/admin' });
+		const actions = _createActions({ signIn });
+
+		const request = new Request('http://localhost/auth/sign-in', {
+			method: 'POST',
+			body: makeFormData({ email: 'admin@example.com', password: 'correct' })
+		});
+
+		const err = await catchRedirect(() => actions.default({ request, url: makeUrl() } as never));
+
+		expect(signIn).toHaveBeenCalledWith('admin@example.com', 'correct', '/');
+		expect(err.status).toBe(303);
+		expect(err.location).toBe('/admin');
+	});
+
 	it('redirects back to the requested timeline view when sign-in succeeds', async () => {
 		const signIn = vi
 			.fn()
