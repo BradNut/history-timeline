@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { signIn, signInAdmin, signUp } from './auth-actions';
+import {
+	maybePromoteFirstRegistrantToAdmin,
+	signIn,
+	signInAdmin,
+	signUp,
+	type PromotionDeps
+} from './auth-actions';
 
 function makeOkResponse(role: string) {
 	const body = JSON.stringify({ user: { role } });
@@ -11,6 +17,37 @@ function makeOkResponse(role: string) {
 
 function makeErrorResponse(status = 401) {
 	return new Response(JSON.stringify({ error: 'Invalid' }), { status });
+}
+
+type MockTx = {
+	execute: ReturnType<typeof vi.fn>;
+	select: ReturnType<typeof vi.fn>;
+	update: ReturnType<typeof vi.fn>;
+};
+
+function createMockDb(adminCount: number) {
+	const updates: Array<{ role?: string; emailVerified?: boolean }> = [];
+
+	const tx: MockTx = {
+		execute: vi.fn().mockResolvedValue(undefined),
+		select: vi.fn(() => ({
+			from: vi.fn(() => ({
+				where: vi.fn().mockResolvedValue([{ count: adminCount }])
+			}))
+		})),
+		update: vi.fn(() => ({
+			set: vi.fn((values: { role?: string; emailVerified?: boolean }) => {
+				updates.push(values);
+				return { where: vi.fn().mockResolvedValue(undefined) };
+			})
+		}))
+	};
+
+	const db = {
+		transaction: vi.fn(async (callback: (tx: MockTx) => Promise<unknown>) => callback(tx))
+	};
+
+	return { db: db as unknown as PromotionDeps['db'], tx, getUpdates: () => updates };
 }
 
 describe('signInAdmin', () => {
@@ -77,8 +114,19 @@ describe('signInAdmin', () => {
 });
 
 describe('signIn', () => {
-	it('returns a redirect to the requested destination on success', async () => {
-		const signInEmail = vi.fn().mockResolvedValue({ user: { id: 'user-1' } });
+	it('redirects an admin to /admin on success', async () => {
+		const signInEmail = vi.fn().mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } });
+
+		const result = await signIn('admin@example.com', 'correct', '/', { signInEmail });
+
+		expect(signInEmail).toHaveBeenCalledWith({
+			body: { email: 'admin@example.com', password: 'correct' }
+		});
+		expect(result).toEqual({ type: 'redirect', location: '/admin' });
+	});
+
+	it('redirects a non-admin to the requested destination on success', async () => {
+		const signInEmail = vi.fn().mockResolvedValue({ user: { id: 'user-1', role: 'user' } });
 
 		const result = await signIn('user@example.com', 'correct', '/?date=2024-07-20', {
 			signInEmail
@@ -87,6 +135,16 @@ describe('signIn', () => {
 		expect(signInEmail).toHaveBeenCalledWith({
 			body: { email: 'user@example.com', password: 'correct' }
 		});
+		expect(result).toEqual({ type: 'redirect', location: '/?date=2024-07-20' });
+	});
+
+	it('redirects to the requested destination when the user has no explicit role', async () => {
+		const signInEmail = vi.fn().mockResolvedValue({ user: { id: 'user-1' } });
+
+		const result = await signIn('user@example.com', 'correct', '/?date=2024-07-20', {
+			signInEmail
+		});
+
 		expect(result).toEqual({ type: 'redirect', location: '/?date=2024-07-20' });
 	});
 
@@ -111,33 +169,72 @@ describe('signIn', () => {
 describe('signUp', () => {
 	it('returns a redirect to the requested destination on success', async () => {
 		const signUpEmail = vi.fn().mockResolvedValue({ user: { id: 'user-1' } });
+		const promote = vi.fn().mockResolvedValue(undefined);
 
 		const result = await signUp('Ada Lovelace', 'ada@example.com', 'correct', '/', {
-			signUpEmail
+			authApi: { signUpEmail },
+			promote
 		});
 
 		expect(signUpEmail).toHaveBeenCalledWith({
 			body: { name: 'Ada Lovelace', email: 'ada@example.com', password: 'correct' }
 		});
+		expect(promote).toHaveBeenCalledWith('user-1');
 		expect(result).toEqual({ type: 'redirect', location: '/' });
 	});
 
 	it('returns an error when the account cannot be created', async () => {
 		const signUpEmail = vi.fn().mockRejectedValue(new Error('email already exists'));
+		const promote = vi.fn();
 
 		const result = await signUp('Ada Lovelace', 'ada@example.com', 'correct', '/', {
-			signUpEmail
+			authApi: { signUpEmail },
+			promote
 		});
 
 		expect(result).toEqual({ type: 'error', message: 'Unable to create account' });
+		expect(promote).not.toHaveBeenCalled();
 	});
 
 	it('returns an error without calling the API when required fields are missing', async () => {
 		const signUpEmail = vi.fn();
+		const promote = vi.fn();
 
-		const result = await signUp('', '', '', '/', { signUpEmail });
+		const result = await signUp('', '', '', '/', { authApi: { signUpEmail }, promote });
 
 		expect(result).toEqual({ type: 'error', message: 'Name, email, and password are required' });
 		expect(signUpEmail).not.toHaveBeenCalled();
+		expect(promote).not.toHaveBeenCalled();
+	});
+});
+
+describe('maybePromoteFirstRegistrantToAdmin', () => {
+	it('promotes the first registrant to admin when no seed vars and no admin exists', async () => {
+		const { db, tx, getUpdates } = createMockDb(0);
+
+		await maybePromoteFirstRegistrantToAdmin('user-1', { db, env: {} });
+
+		expect(tx.execute).toHaveBeenCalledOnce();
+		expect(getUpdates()).toEqual([{ role: 'admin', emailVerified: true }]);
+	});
+
+	it('does not promote a later registrant when an admin already exists', async () => {
+		const { db, tx, getUpdates } = createMockDb(1);
+
+		await maybePromoteFirstRegistrantToAdmin('user-2', { db, env: {} });
+
+		expect(tx.execute).toHaveBeenCalledOnce();
+		expect(getUpdates()).toEqual([{ emailVerified: true }]);
+	});
+
+	it('does not promote a registrant when seed vars are set even if no admin exists yet', async () => {
+		const { db, getUpdates } = createMockDb(0);
+
+		await maybePromoteFirstRegistrantToAdmin('user-1', {
+			db,
+			env: { ADMIN_SEED_EMAIL: 'admin@example.com', ADMIN_SEED_PASSWORD: 'supersecret' }
+		});
+
+		expect(getUpdates()).toEqual([{ emailVerified: true }]);
 	});
 });

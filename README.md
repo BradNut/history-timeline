@@ -56,6 +56,8 @@ pnpm --filter history-timeline-web db:seed
 
 This creates topics, subtopics, and an admin user (`admin@historytimeline.local` / `changeme-admin-2025`).
 
+> For production, prefer the non-destructive `db:bootstrap-admin` script. See the [self-hosting guide](./docs/self-hosting.md) for all deployment options.
+
 ### 6. Start the dev server
 
 ```sh
@@ -66,7 +68,9 @@ Open [http://localhost:5173](http://localhost:5173).
 
 ## Admin
 
-Navigate to [http://localhost:5173/admin/login](http://localhost:5173/admin/login).
+Navigate to [http://localhost:5173/auth/sign-in](http://localhost:5173/auth/sign-in) and sign in with the admin account.
+
+Admins are redirected to `/admin` automatically; everyone signs in through the same route. See the [self-hosting guide](./docs/self-hosting.md) for details on bootstrapping an admin account.
 
 From the admin dashboard you can:
 - Trigger a **Daily Import** (fetches today's Wikipedia events)
@@ -84,6 +88,7 @@ From the admin dashboard you can:
 | `pnpm db:start` | Start PostgreSQL container |
 | `pnpm db:migrate` | Run database migrations |
 | `pnpm db:seed` | Seed topics and admin user |
+| `pnpm db:bootstrap-admin` | Provision the admin user without destroying data |
 | `pnpm db:generate` | Generate new migration from schema changes |
 | `pnpm db:studio` | Open Drizzle Studio |
 | `pnpm test` | Run tests |
@@ -97,6 +102,10 @@ pnpm --filter history-timeline-web docker:up
 ```
 
 This builds the image and starts both the database and app containers. Environment variables are configured in `docker-compose.yml`.
+
+## Self-hosting
+
+See the [self-hosting guide](./docs/self-hosting.md) for a production deployment checklist, including admin bootstrapping, public registration, health checks, and Coolify.
 
 ## License
 

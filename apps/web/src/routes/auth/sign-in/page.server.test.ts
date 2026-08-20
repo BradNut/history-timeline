@@ -45,7 +45,24 @@ describe('sign-in load', () => {
 			locals: {}
 		} as never);
 
+		expect(result).toEqual({ redirectTo: '/', registrationEnabled: true });
+	});
+});
+
+describe('sign-in load registration flag', () => {
+	it('includes registrationEnabled: true when registration is enabled', async () => {
+		const load = _createLoad({ isRegistrationEnabled: () => true });
+		const result = await load({ url: makeUrl(), locals: {} } as never);
+
+		expect(result).toEqual({ redirectTo: '/', registrationEnabled: true });
+	});
+
+	it('omits the registrationEnabled flag when registration is disabled', async () => {
+		const load = _createLoad({ isRegistrationEnabled: () => false });
+		const result = await load({ url: makeUrl(), locals: {} } as never);
+
 		expect(result).toEqual({ redirectTo: '/' });
+		expect(result).not.toHaveProperty('registrationEnabled');
 	});
 });
 
@@ -66,6 +83,22 @@ describe('sign-in actions', () => {
 		expect(signIn).toHaveBeenCalledWith('user@example.com', 'correct', '/');
 		expect(err.status).toBe(303);
 		expect(err.location).toBe('/');
+	});
+
+	it('redirects an admin to /admin when sign-in succeeds', async () => {
+		const signIn = vi.fn().mockResolvedValue({ type: 'redirect', location: '/admin' });
+		const actions = _createActions({ signIn });
+
+		const request = new Request('http://localhost/auth/sign-in', {
+			method: 'POST',
+			body: makeFormData({ email: 'admin@example.com', password: 'correct' })
+		});
+
+		const err = await catchRedirect(() => actions.default({ request, url: makeUrl() } as never));
+
+		expect(signIn).toHaveBeenCalledWith('admin@example.com', 'correct', '/');
+		expect(err.status).toBe(303);
+		expect(err.location).toBe('/admin');
 	});
 
 	it('redirects back to the requested timeline view when sign-in succeeds', async () => {

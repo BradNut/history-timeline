@@ -17,6 +17,7 @@
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "DB_MIGRATING=true tsx --env-file-if-exists=.env src/lib/server/databases/postgres/migrate.ts",
+		"db:bootstrap-admin": "DB_BOOTSTRAPPING_ADMIN=true tsx --env-file-if-exists=.env src/lib/server/databases/postgres/bootstrap-admin.ts",
 		"db:studio": "drizzle-kit studio",
 		"auth:schema": "better-auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"db:seed": "DB_SEEDING=true tsx --env-file-if-exists=.env src/lib/server/databases/postgres/seed.ts",
