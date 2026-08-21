@@ -48,6 +48,13 @@ function makeCacheMissDeps(dbResult: EventWithTopics[] = DB_EVENTS) {
 	};
 }
 
+async function runGetEventsCacheMiss(deps: ReturnType<typeof makeCacheMissDeps>) {
+	const result = await getEvents(makeParams(), { cache: deps.cache, db: deps.db as never });
+	expect(result).toEqual(DB_EVENTS);
+	expect(deps.db.query).toHaveBeenCalledOnce();
+	return result;
+}
+
 describe('getEvents', () => {
 	it('returns cached events without querying the DB on a cache hit', async () => {
 		const cache = {
@@ -64,25 +71,20 @@ describe('getEvents', () => {
 	});
 
 	it('queries the DB, caches the result, and returns events on a cache miss', async () => {
-		const { cache, db } = makeCacheMissDeps();
+		const deps = makeCacheMissDeps();
 
-		const result = await getEvents(makeParams(), { cache, db: db as never });
+		await runGetEventsCacheMiss(deps);
 
-		expect(result).toEqual(DB_EVENTS);
-		expect(db.query).toHaveBeenCalledOnce();
-		expect(cache.setWithExpiry).toHaveBeenCalledOnce();
-		const setCall = cache.setWithExpiry.mock.calls[0][0];
+		expect(deps.cache.setWithExpiry).toHaveBeenCalledOnce();
+		const setCall = deps.cache.setWithExpiry.mock.calls[0][0];
 		expect(setCall.value).toBe(JSON.stringify(DB_EVENTS));
 		expect(setCall.expiry).toBe(86400);
 	});
 
 	it('falls through to the DB and returns events when the cache is unavailable', async () => {
-		const { cache, db } = makeCacheMissDeps();
+		const deps = makeCacheMissDeps();
 
-		const result = await getEvents(makeParams(), { cache, db: db as never });
-
-		expect(result).toEqual(DB_EVENTS);
-		expect(db.query).toHaveBeenCalledOnce();
+		await runGetEventsCacheMiss(deps);
 	});
 });
 
