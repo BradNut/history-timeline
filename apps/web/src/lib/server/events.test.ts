@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EventWithTopics } from '../../routes/+page.server';
-import { getEventCount, getEvents, getTopicsInWindow } from './events';
+import { getEventCount, getEvents, getTopicsInWindow, invalidateEventsCache } from './events';
 
 const CACHED_EVENTS: EventWithTopics[] = [
 	{
@@ -43,7 +43,8 @@ function makeCacheMissDeps(dbResult: EventWithTopics[] = DB_EVENTS) {
 		cache: {
 			get: vi.fn().mockResolvedValue(null),
 			setWithExpiry: vi.fn().mockResolvedValue(undefined),
-			delete: vi.fn().mockResolvedValue(undefined)
+			delete: vi.fn().mockResolvedValue(undefined),
+			scan: vi.fn().mockResolvedValue([])
 		},
 		db: { query: vi.fn().mockResolvedValue(dbResult) }
 	};
@@ -61,7 +62,8 @@ describe('getEvents', () => {
 		const cache = {
 			get: vi.fn().mockResolvedValue(JSON.stringify(CACHED_EVENTS)),
 			setWithExpiry: vi.fn(),
-			delete: vi.fn()
+			delete: vi.fn(),
+			scan: vi.fn().mockResolvedValue([])
 		};
 		const db = { query: vi.fn() };
 
@@ -160,5 +162,31 @@ describe('getTopicsInWindow', () => {
 		const ids = result.map((t) => t.id);
 		expect(ids).toEqual([...new Set(ids)]);
 		expect(ids).toContain(1);
+	});
+});
+
+describe('invalidateEventsCache', () => {
+	it('deletes all cache keys containing the imported day regardless of topic or window size', async () => {
+		const cache = {
+			get: vi.fn().mockResolvedValue(null),
+			setWithExpiry: vi.fn().mockResolvedValue(undefined),
+			delete: vi.fn().mockResolvedValue(undefined),
+			scan: vi.fn().mockResolvedValue([
+				'6-21-null',
+				'6-21-5',
+				'6-19,6-20,6-21,6-22,6-23,6-24,6-25-null'
+			])
+		};
+
+		await invalidateEventsCache({ dates: [{ month: 6, day: 21 }] }, { cache });
+
+		expect(cache.scan).toHaveBeenCalledWith({ prefix: 'events', pattern: '*6-21*' });
+		expect(cache.delete).toHaveBeenCalledTimes(3);
+		expect(cache.delete).toHaveBeenCalledWith({ prefix: 'events', key: '6-21-null' });
+		expect(cache.delete).toHaveBeenCalledWith({ prefix: 'events', key: '6-21-5' });
+		expect(cache.delete).toHaveBeenCalledWith({
+			prefix: 'events',
+			key: '6-19,6-20,6-21,6-22,6-23,6-24,6-25-null'
+		});
 	});
 });

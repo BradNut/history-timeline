@@ -89,7 +89,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 				const runningCount = await deps.getRunningImportCount(month, day);
 				if (runningCount === 0) {
 					await deps.runImportForDate(month, day);
-					await deps.invalidateEventsCache({ ...dateRange, topicIdFilter });
+					await deps.invalidateEventsCache(dateRange);
 					eventList = await deps.getEvents({ ...dateRange, topicIdFilter });
 				}
 			}

@@ -257,9 +257,23 @@ describe('load — auto-import behaviour', () => {
 		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
 
 		expect(deps.invalidateEventsCache).toHaveBeenCalledWith({
-			dates: [{ month: TODAY_MONTH, day: TODAY_DAY }],
-			topicIdFilter: undefined
+			dates: [{ month: TODAY_MONTH, day: TODAY_DAY }]
 		});
+	});
+
+	it('invalidates all cache variants for the day, not just the current topic filter', async () => {
+		const deps = makeDeps({
+			getTopicsInWindow: vi.fn().mockResolvedValue([{ id: 7, name: 'Filtered Topic', slug: 'filtered' }]),
+			getEvents: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(FRESH_EVENTS),
+			getEventCount: vi.fn().mockResolvedValue(0)
+		});
+
+		const result = await loadAsTimeline(deps, { topic: 'filtered' });
+		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
+
+		const call = vi.mocked(deps.invalidateEventsCache).mock.calls[0][0];
+		expect(call).toEqual({ dates: [{ month: TODAY_MONTH, day: TODAY_DAY }] });
+		expect(call).not.toHaveProperty('topicIdFilter');
 	});
 
 	it('does not trigger an import when the unfiltered day has events but the selected topic is empty', async () => {

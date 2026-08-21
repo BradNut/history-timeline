@@ -19,6 +19,7 @@ type CacheDep = {
   get: (data: { prefix: string; key: string }) => Promise<string | null>;
   setWithExpiry: (data: { prefix: string; key: string; value: string; expiry: number }) => Promise<void>;
   delete: (data: { prefix: string; key: string }) => Promise<void>;
+  scan: (data: { prefix: string; pattern: string }) => Promise<string[]>;
 };
 
 type DbDep = {
@@ -191,8 +192,14 @@ export async function getEvents(params: GetEventsParams, deps?: Deps): Promise<E
   return result;
 }
 
-export async function invalidateEventsCache(params: GetEventsParams, deps?: { cache: CacheDep }): Promise<void> {
+export async function invalidateEventsCache(params: DateWindow, deps?: { cache: CacheDep }): Promise<void> {
   const resolvedDeps = deps ?? { cache: redisService };
-  const key = buildCacheKey(params);
-  await resolvedDeps.cache.delete({ prefix: CACHE_PREFIX, key });
+
+  for (const date of params.dates) {
+    const pattern = `*${date.month}-${date.day}*`;
+    const keys = await resolvedDeps.cache.scan({ prefix: CACHE_PREFIX, pattern });
+    for (const key of keys) {
+      await resolvedDeps.cache.delete({ prefix: CACHE_PREFIX, key });
+    }
+  }
 }
