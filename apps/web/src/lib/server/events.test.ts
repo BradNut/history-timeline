@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import { getEvents } from './events';
+import { describe, expect, it, vi } from 'vitest';
 import type { EventWithTopics } from '../../routes/+page.server';
+import { getEventCount, getEvents, getTopicsInWindow } from './events';
 
 const CACHED_EVENTS: EventWithTopics[] = [
 	{
@@ -38,6 +38,23 @@ function makeParams(overrides: Partial<Parameters<typeof getEvents>[0]> = {}) {
 	return { months: [6], days: [21], topicIdFilter: undefined, ...overrides };
 }
 
+function makeCacheMissDeps(dbResult: EventWithTopics[] = DB_EVENTS) {
+	return {
+		cache: {
+			get: vi.fn().mockResolvedValue(null),
+			setWithExpiry: vi.fn().mockResolvedValue(undefined)
+		},
+		db: { query: vi.fn().mockResolvedValue(dbResult) }
+	};
+}
+
+async function runGetEventsCacheMiss(deps: ReturnType<typeof makeCacheMissDeps>) {
+	const result = await getEvents(makeParams(), { cache: deps.cache, db: deps.db as never });
+	expect(result).toEqual(DB_EVENTS);
+	expect(deps.db.query).toHaveBeenCalledOnce();
+	return result;
+}
+
 describe('getEvents', () => {
 	it('returns cached events without querying the DB on a cache hit', async () => {
 		const cache = {
@@ -54,32 +71,86 @@ describe('getEvents', () => {
 	});
 
 	it('queries the DB, caches the result, and returns events on a cache miss', async () => {
-		const cache = {
-			get: vi.fn().mockResolvedValue(null),
-			setWithExpiry: vi.fn().mockResolvedValue(undefined)
-		};
-		const db = { query: vi.fn().mockResolvedValue(DB_EVENTS) };
+		const deps = makeCacheMissDeps();
 
-		const result = await getEvents(makeParams(), { cache, db: db as never });
+		await runGetEventsCacheMiss(deps);
 
-		expect(result).toEqual(DB_EVENTS);
-		expect(db.query).toHaveBeenCalledOnce();
-		expect(cache.setWithExpiry).toHaveBeenCalledOnce();
-		const setCall = cache.setWithExpiry.mock.calls[0][0];
+		expect(deps.cache.setWithExpiry).toHaveBeenCalledOnce();
+		const setCall = deps.cache.setWithExpiry.mock.calls[0][0];
 		expect(setCall.value).toBe(JSON.stringify(DB_EVENTS));
 		expect(setCall.expiry).toBe(86400);
 	});
 
 	it('falls through to the DB and returns events when the cache is unavailable', async () => {
-		const cache = {
-			get: vi.fn().mockResolvedValue(null),
-			setWithExpiry: vi.fn().mockResolvedValue(undefined)
-		};
-		const db = { query: vi.fn().mockResolvedValue(DB_EVENTS) };
+		const deps = makeCacheMissDeps();
 
-		const result = await getEvents(makeParams(), { cache, db: db as never });
+		await runGetEventsCacheMiss(deps);
+	});
+});
 
-		expect(result).toEqual(DB_EVENTS);
-		expect(db.query).toHaveBeenCalledOnce();
+describe('getEventCount', () => {
+	it('returns the number of events matching the month/day set', async () => {
+		const db = { count: vi.fn().mockResolvedValue(5) };
+
+		const result = await getEventCount({ months: [6], days: [21] }, { db });
+
+		expect(result).toBe(5);
+		expect(db.count).toHaveBeenCalledWith({ months: [6], days: [21] });
+	});
+
+	it('returns zero when no events match', async () => {
+		const db = { count: vi.fn().mockResolvedValue(0) };
+
+		const result = await getEventCount({ months: [6], days: [21] }, { db });
+
+		expect(result).toBe(0);
+	});
+});
+
+const TOPIC_A = { id: 1, name: 'Topic A', slug: 'topic-a' };
+const TOPIC_B = { id: 2, name: 'Topic B', slug: 'topic-b' };
+const TOPIC_C = { id: 3, name: 'Topic C', slug: 'topic-c' };
+
+const ALL_TOPICS = [TOPIC_A, TOPIC_B, TOPIC_C];
+
+const TOPIC_EVENTS = [
+	{ topicId: 1, month: 6, day: 19 },
+	{ topicId: 1, month: 6, day: 20 },
+	{ topicId: 2, month: 6, day: 21 },
+	{ topicId: 3, month: 6, day: 25 }
+];
+
+function createMockTopicsDb() {
+	return {
+		query: vi.fn(async (params: { months: number[]; days: number[] }) => {
+			const months = new Set(params.months);
+			const days = new Set(params.days);
+			const topicIds = new Set(
+				TOPIC_EVENTS.filter((e) => months.has(e.month) && days.has(e.day)).map((e) => e.topicId)
+			);
+			return ALL_TOPICS.filter((t) => topicIds.has(t.id));
+		})
+	};
+}
+
+describe('getTopicsInWindow', () => {
+	it('returns only topics that have events inside the window', async () => {
+		const db = createMockTopicsDb();
+		const result = await getTopicsInWindow({ months: [6], days: [20, 21, 22] }, { db });
+		expect(result.map((t) => t.id)).toEqual([1, 2]);
+	});
+
+	it('excludes topics whose events fall outside the window', async () => {
+		const db = createMockTopicsDb();
+		const result = await getTopicsInWindow({ months: [6], days: [21] }, { db });
+		expect(result).toEqual([TOPIC_B]);
+	});
+
+	it('deduplicates topics when multiple events match', async () => {
+		const db = createMockTopicsDb();
+		const result = await getTopicsInWindow({ months: [6], days: [19, 20, 21] }, { db });
+		const ids = result.map((t) => t.id);
+		expect(ids).toEqual([...new Set(ids)]);
+		expect(ids).toContain(1);
 	});
 });

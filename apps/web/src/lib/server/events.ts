@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import { db as defaultDb } from '$lib/server/databases/postgres';
 import { events, eventTopics, subtopics, topics } from '$lib/server/databases/postgres/drizzle-schema';
 import { REDIS_PREFIXES, redisService } from '$lib/server/databases/redis/redis';
@@ -7,9 +7,12 @@ import type { EventWithTopics } from '../../routes/+page.server';
 const CACHE_PREFIX = REDIS_PREFIXES.EVENTS;
 const CACHE_TTL_SECONDS = 86400;
 
-export type GetEventsParams = {
+export type DateWindow = {
   months: number[];
   days: number[];
+};
+
+export type GetEventsParams = DateWindow & {
   topicIdFilter: number | undefined;
 };
 
@@ -25,6 +28,22 @@ type DbDep = {
 type Deps = {
   cache: CacheDep;
   db: DbDep;
+};
+
+type TopicsInWindowDbDep = {
+  query: (params: DateWindow) => Promise<Array<{ id: number; name: string; slug: string }>>;
+};
+
+type TopicsInWindowDeps = {
+  db: TopicsInWindowDbDep;
+};
+
+type EventCountDbDep = {
+  count: (params: DateWindow) => Promise<number>;
+};
+
+type EventCountDeps = {
+  db: EventCountDbDep;
 };
 
 function buildCacheKey(params: GetEventsParams): string {
@@ -100,6 +119,55 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
   }
 
   return [...eventsMap.values()].sort((a, b) => b.year - a.year);
+}
+
+async function queryTopicsInWindow(
+  params: DateWindow,
+): Promise<Array<{ id: number; name: string; slug: string }>> {
+  return defaultDb
+    .select({
+      id: topics.id,
+      name: topics.name,
+      slug: topics.slug,
+    })
+    .from(events)
+    .innerJoin(eventTopics, eq(eventTopics.eventId, events.id))
+    .innerJoin(topics, eq(topics.id, eventTopics.topicId))
+    .where(
+      and(
+        inArray(events.month, params.months),
+        inArray(events.day, params.days),
+      ),
+    )
+    .groupBy(topics.id, topics.name, topics.slug)
+    .orderBy(topics.name);
+}
+
+export async function getTopicsInWindow(
+  params: DateWindow,
+  deps?: TopicsInWindowDeps,
+): Promise<Array<{ id: number; name: string; slug: string }>> {
+  const resolvedDeps = deps ?? { db: { query: queryTopicsInWindow } };
+  return resolvedDeps.db.query(params);
+}
+
+async function queryEventCount(params: DateWindow): Promise<number> {
+  const rows = await defaultDb
+    .select({ value: count() })
+    .from(events)
+    .where(
+      and(
+        inArray(events.month, params.months),
+        inArray(events.day, params.days),
+      ),
+    );
+
+  return rows[0]?.value ?? 0;
+}
+
+export async function getEventCount(params: DateWindow, deps?: EventCountDeps): Promise<number> {
+  const resolvedDeps = deps ?? { db: { count: queryEventCount } };
+  return resolvedDeps.db.count(params);
 }
 
 export async function getEvents(params: GetEventsParams, deps?: Deps): Promise<EventWithTopics[]> {

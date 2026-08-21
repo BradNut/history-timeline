@@ -29,10 +29,11 @@ function makeUrl(params: Record<string, string> = {}) {
 	return url;
 }
 
-function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}) {
+function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}): Parameters<typeof _createLoad>[0] {
 	return {
-		getTopics: vi.fn().mockResolvedValue([]),
+		getTopicsInWindow: vi.fn().mockResolvedValue([]),
 		getEvents: vi.fn().mockResolvedValue([]),
+		getEventCount: vi.fn().mockResolvedValue(0),
 		getRunningImportCount: vi.fn().mockResolvedValue(0),
 		runImportForDate: vi.fn().mockResolvedValue({ eventsUpserted: 1, unmappedCount: 0 }),
 		...overrides
@@ -43,23 +44,73 @@ function makeLocals(user?: typeof STUB_USER) {
 	return { user } as App.Locals;
 }
 
+function expectNoTimelineWork(deps: ReturnType<typeof makeDeps>) {
+	expect(deps.getTopicsInWindow).not.toHaveBeenCalled();
+	expect(deps.getEvents).not.toHaveBeenCalled();
+	expect(deps.getRunningImportCount).not.toHaveBeenCalled();
+	expect(deps.runImportForDate).not.toHaveBeenCalled();
+}
+
+async function loadAsTimeline(
+	deps: ReturnType<typeof makeDeps> = makeDeps(),
+	params: Record<string, string> = {}
+) {
+	const load = _createLoad(deps);
+	const result = await load({ url: makeUrl(params), locals: makeLocals(STUB_USER) } as never);
+	if (!result) throw new Error('load returned void');
+	return result;
+}
+
+async function expectAutoImportResult(
+	deps: ReturnType<typeof makeDeps>,
+	expectedEvents: EventWithTopics[],
+	shouldImport: boolean
+) {
+	const result = await loadAsTimeline(deps);
+	await expect(result.events).resolves.toEqual(expectedEvents);
+	expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
+	if (shouldImport) {
+		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
+	} else {
+		expect(deps.runImportForDate).not.toHaveBeenCalled();
+	}
+}
+
 describe('load — authentication branch', () => {
 	it('returns timeline-shaped data when locals.user is present', async () => {
 		const deps = makeDeps({
 			getEvents: vi.fn().mockResolvedValue(FRESH_EVENTS)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		const result = await loadAsTimeline(deps);
 
+		expect(result.view).toBe('timeline');
 		expect(result).toMatchObject({
-			view: 'timeline',
-			events: FRESH_EVENTS,
 			granularity: 'today',
 			topicSlug: null,
 			topics: []
 		});
+		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
 		expect(deps.getEvents).toHaveBeenCalled();
+	});
+
+	it('returns topics scoped to the anchor date ±1 day window', async () => {
+		const windowedTopics = [{ id: 5, name: 'Scoped Topic', slug: 'scoped-topic' }];
+		const deps = makeDeps({
+			getTopicsInWindow: vi.fn().mockResolvedValue(windowedTopics)
+		});
+
+		const result = await loadAsTimeline(deps, { date: '2024-07-20' });
+
+		expect(deps.getTopicsInWindow).toHaveBeenCalledOnce();
+		const call = vi.mocked(deps.getTopicsInWindow).mock.calls[0][0];
+		expect(call).toHaveProperty('months');
+		expect(call).toHaveProperty('days');
+		expect(call.days).toHaveLength(3);
+		expect(result).toMatchObject({
+			view: 'timeline',
+			topics: windowedTopics
+		});
 	});
 
 	it('returns landing-shaped data when locals.user is absent', async () => {
@@ -75,10 +126,7 @@ describe('load — authentication branch', () => {
 			granularity: 'today',
 			topicSlug: null
 		});
-		expect(deps.getTopics).not.toHaveBeenCalled();
-		expect(deps.getEvents).not.toHaveBeenCalled();
-		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
-		expect(deps.runImportForDate).not.toHaveBeenCalled();
+		expectNoTimelineWork(deps);
 	});
 
 	it('preserves incoming timeline query params on the landing view', async () => {
@@ -97,10 +145,7 @@ describe('load — authentication branch', () => {
 			granularity: 'week',
 			topicSlug: 'historical'
 		});
-		expect(deps.getTopics).not.toHaveBeenCalled();
-		expect(deps.getEvents).not.toHaveBeenCalled();
-		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
-		expect(deps.runImportForDate).not.toHaveBeenCalled();
+		expectNoTimelineWork(deps);
 	});
 });
 
@@ -110,14 +155,11 @@ describe('load — auto-import behaviour', () => {
 			getEvents: vi
 				.fn()
 				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce(FRESH_EVENTS)
+				.mockResolvedValueOnce(FRESH_EVENTS),
+			getEventCount: vi.fn().mockResolvedValue(0)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
-
-		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
-		expect(result).toMatchObject({ view: 'timeline', events: FRESH_EVENTS });
+		await expectAutoImportResult(deps, FRESH_EVENTS, true);
 	});
 
 	it('skips the import when a running import already exists', async () => {
@@ -125,29 +167,40 @@ describe('load — auto-import behaviour', () => {
 			getRunningImportCount: vi.fn().mockResolvedValue(1)
 		});
 
-		const load = _createLoad(deps);
-		await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		const result = await loadAsTimeline(deps);
 
+		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
 
 	it('does not trigger an import when events already exist for today', async () => {
 		const deps = makeDeps({
-			getEvents: vi.fn().mockResolvedValue(FRESH_EVENTS)
+			getEvents: vi.fn().mockResolvedValue(FRESH_EVENTS),
+			getEventCount: vi.fn().mockResolvedValue(3)
 		});
 
-		const load = _createLoad(deps);
-		await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		await expectAutoImportResult(deps, FRESH_EVENTS, false);
+	});
 
+	it('does not trigger an import when the unfiltered day has events but the selected topic is empty', async () => {
+		const deps = makeDeps({
+			getTopicsInWindow: vi.fn().mockResolvedValue([{ id: 7, name: 'Filtered Topic', slug: 'filtered' }]),
+			getEvents: vi.fn().mockResolvedValue([]),
+			getEventCount: vi.fn().mockResolvedValue(5)
+		});
+
+		const result = await loadAsTimeline(deps, { topic: 'filtered' });
+
+		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
 
 	it('does not trigger an import when granularity is not today', async () => {
 		const deps = makeDeps();
 
-		const load = _createLoad(deps);
-		await load({ url: makeUrl({ granularity: 'week' }), locals: makeLocals(STUB_USER) } as never);
+		const result = await loadAsTimeline(deps, { granularity: 'week' });
 
+		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
 });
