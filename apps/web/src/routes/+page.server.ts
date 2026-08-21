@@ -65,7 +65,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 			return { view: 'landing', redirectTo, date: dateParam, granularity: validGranularity, topicSlug };
 		}
 
-		const anchorDate = dateParam ? parseLocalDate(dateParam) : new Date();
+		const anchorDate = (dateParam !== null ? parseLocalDate(dateParam) : null) ?? new Date();
 		const dateRange = getDateRange(anchorDate, validGranularity);
 		const topicWindow = getTopicWindow(anchorDate);
 
@@ -152,9 +152,14 @@ function getTopicWindow(anchorDate: Date): DateWindow {
 	return datesToWindow(dates);
 }
 
-function parseLocalDate(dateString: string): Date {
+function parseLocalDate(dateString: string): Date | null {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return null;
 	const [year, month, day] = dateString.split('-').map(Number);
-	return new Date(year, month - 1, day);
+	const date = new Date(year, month - 1, day);
+	if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+		return null;
+	}
+	return date;
 }
 
 function formatLocalDate(date: Date): string {

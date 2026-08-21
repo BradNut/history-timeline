@@ -113,6 +113,23 @@ describe('load — authentication branch', () => {
 		]);
 	});
 
+	it.each([
+		['abc-def-ghi', 'non-numeric segments'],
+		['15-06-2024', 'DD-MM-YYYY instead of YYYY-MM-DD'],
+		['2024-02-31', 'rollover date (Feb 31)'],
+		['2024-13-15', 'impossible month (13)']
+	])('falls back to today for invalid date param %s (%s)', async (dateInput) => {
+		const deps = makeDeps();
+		const today = new Date();
+		const expectedMonth = String(today.getMonth() + 1).padStart(2, '0');
+		const expectedDay = String(today.getDate()).padStart(2, '0');
+		const expectedDate = `${today.getFullYear()}-${expectedMonth}-${expectedDay}`;
+
+		const result = await loadAsTimeline(deps, { date: dateInput });
+
+		expect(result.anchorDate).toBe(expectedDate);
+	});
+
 	it('returns topics scoped to the anchor date ±1 day window', async () => {
 		const windowedTopics = [{ id: 5, name: 'Scoped Topic', slug: 'scoped-topic' }];
 		const deps = makeDeps({
