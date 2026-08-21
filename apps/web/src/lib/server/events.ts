@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, or } from 'drizzle-orm';
 import { db as defaultDb } from '$lib/server/databases/postgres';
 import { events, eventTopics, subtopics, topics } from '$lib/server/databases/postgres/drizzle-schema';
 import { REDIS_PREFIXES, redisService } from '$lib/server/databases/redis/redis';
@@ -7,15 +7,19 @@ import type { EventWithTopics } from '../../routes/+page.server';
 const CACHE_PREFIX = REDIS_PREFIXES.EVENTS;
 const CACHE_TTL_SECONDS = 86400;
 
-export type GetEventsParams = {
-  months: number[];
-  days: number[];
+export type DateWindow = {
+  dates: Array<{ month: number; day: number }>;
+};
+
+export type GetEventsParams = DateWindow & {
   topicIdFilter: number | undefined;
 };
 
 type CacheDep = {
   get: (data: { prefix: string; key: string }) => Promise<string | null>;
   setWithExpiry: (data: { prefix: string; key: string; value: string; expiry: number }) => Promise<void>;
+  delete: (data: { prefix: string; key: string }) => Promise<void>;
+  scan: (data: { prefix: string; pattern: string }) => Promise<string[]>;
 };
 
 type DbDep = {
@@ -27,11 +31,27 @@ type Deps = {
   db: DbDep;
 };
 
+type TopicsInWindowDbDep = {
+  query: (params: DateWindow) => Promise<Array<{ id: number; name: string; slug: string }>>;
+};
+
+
+type TopicsInWindowDeps = {
+  db: TopicsInWindowDbDep;
+};
+
+type EventCountDbDep = {
+  count: (params: DateWindow) => Promise<number>;
+};
+
+type EventCountDeps = {
+  db: EventCountDbDep;
+};
+
 function buildCacheKey(params: GetEventsParams): string {
-  const months = params.months.join(',');
-  const days = params.days.join(',');
+  const dates = params.dates.map((d) => `${d.month}-${d.day}`).join(',');
   const topic = params.topicIdFilter ?? 'null';
-  return `${months}-${days}-${topic}`;
+  return `${dates}-${topic}`;
 }
 
 export function eventsWithTopicsQuery() {
@@ -58,12 +78,16 @@ export function eventsWithTopicsQuery() {
     .leftJoin(subtopics, eq(subtopics.id, eventTopics.subtopicId));
 }
 
+function buildDatePredicates(window: DateWindow) {
+  return window.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
+}
+
 async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> {
+  const datePredicates = buildDatePredicates(params);
   const rows = await eventsWithTopicsQuery()
     .where(
       and(
-        inArray(events.month, params.months),
-        inArray(events.day, params.days),
+        or(...datePredicates),
         params.topicIdFilter ? eq(eventTopics.topicId, params.topicIdFilter) : undefined,
       ),
     )
@@ -102,6 +126,47 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
   return [...eventsMap.values()].sort((a, b) => b.year - a.year);
 }
 
+async function queryTopicsInWindow(
+  params: DateWindow,
+): Promise<Array<{ id: number; name: string; slug: string }>> {
+  const datePredicates = buildDatePredicates(params);
+  return defaultDb
+    .select({
+      id: topics.id,
+      name: topics.name,
+      slug: topics.slug,
+    })
+    .from(events)
+    .innerJoin(eventTopics, eq(eventTopics.eventId, events.id))
+    .innerJoin(topics, eq(topics.id, eventTopics.topicId))
+    .where(or(...datePredicates))
+    .groupBy(topics.id, topics.name, topics.slug)
+    .orderBy(topics.name);
+}
+
+export async function getTopicsInWindow(
+  params: DateWindow,
+  deps?: TopicsInWindowDeps,
+): Promise<Array<{ id: number; name: string; slug: string }>> {
+  const resolvedDeps = deps ?? { db: { query: queryTopicsInWindow } };
+  return resolvedDeps.db.query(params);
+}
+
+async function queryEventCount(params: DateWindow): Promise<number> {
+  const datePredicates = buildDatePredicates(params);
+  const rows = await defaultDb
+    .select({ value: count() })
+    .from(events)
+    .where(or(...datePredicates));
+
+  return rows[0]?.value ?? 0;
+}
+
+export async function getEventCount(params: DateWindow, deps?: EventCountDeps): Promise<number> {
+  const resolvedDeps = deps ?? { db: { count: queryEventCount } };
+  return resolvedDeps.db.count(params);
+}
+
 export async function getEvents(params: GetEventsParams, deps?: Deps): Promise<EventWithTopics[]> {
   const resolvedDeps = deps ?? {
     cache: redisService,
@@ -125,4 +190,16 @@ export async function getEvents(params: GetEventsParams, deps?: Deps): Promise<E
   });
 
   return result;
+}
+
+export async function invalidateEventsCache(params: DateWindow, deps?: { cache: CacheDep }): Promise<void> {
+  const resolvedDeps = deps ?? { cache: redisService };
+
+  for (const date of params.dates) {
+    const pattern = `*${date.month}-${date.day}*`;
+    const keys = await resolvedDeps.cache.scan({ prefix: CACHE_PREFIX, pattern });
+    for (const key of keys) {
+      await resolvedDeps.cache.delete({ prefix: CACHE_PREFIX, key });
+    }
+  }
 }

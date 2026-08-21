@@ -6,6 +6,7 @@
 	import LandingPage from "$lib/components/LandingPage.svelte";
 	import SourceAttribution from "$lib/components/SourceAttribution.svelte";
 	import Timeline from "$lib/components/Timeline.svelte";
+	import TimelineSkeleton from "$lib/components/TimelineSkeleton.svelte";
 	import TopicFilter from "$lib/components/TopicFilter.svelte";
 	import type { EventWithTopics } from "./+page.server";
 	import type { PageData } from "./$types";
@@ -84,14 +85,22 @@
 				</div>
 			{/if}
 
-			<Timeline
-				events={timelineData.events}
-				{highlightedEventId}
-				onselect={(e) => {
-					selectedEvent = e;
-					modalOpen = true;
-				}}
-			/>
+			{#await timelineData.events}
+				<TimelineSkeleton />
+			{:then events}
+				<Timeline
+					{events}
+					{highlightedEventId}
+					onselect={(e) => {
+						selectedEvent = e;
+						modalOpen = true;
+					}}
+				/>
+			{:catch}
+				<div class="text-white/40 text-center py-24 text-lg">
+					Unable to load events. Please try again later.
+				</div>
+			{/await}
 		</main>
 
 		<SourceAttribution />
