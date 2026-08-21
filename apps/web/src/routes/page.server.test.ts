@@ -52,14 +52,15 @@ describe('load — authentication branch', () => {
 
 		const load = _createLoad(deps);
 		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		if (!result) throw new Error('load returned void');
 
+		expect(result.view).toBe('timeline');
 		expect(result).toMatchObject({
-			view: 'timeline',
-			events: FRESH_EVENTS,
 			granularity: 'today',
 			topicSlug: null,
 			topics: []
 		});
+		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
 		expect(deps.getEvents).toHaveBeenCalled();
 	});
 
@@ -76,7 +77,7 @@ describe('load — authentication branch', () => {
 		} as never);
 
 		expect(deps.getTopicsInWindow).toHaveBeenCalledOnce();
-		const call = deps.getTopicsInWindow.mock.calls[0][0];
+		const call = vi.mocked(deps.getTopicsInWindow).mock.calls[0][0];
 		expect(call).toHaveProperty('months');
 		expect(call).toHaveProperty('days');
 		expect(call.days).toHaveLength(3);
@@ -140,10 +141,11 @@ describe('load — auto-import behaviour', () => {
 
 		const load = _createLoad(deps);
 		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		if (!result) throw new Error('load returned void');
 
+		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
 		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
 		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
-		expect(result).toMatchObject({ view: 'timeline', events: FRESH_EVENTS });
 	});
 
 	it('skips the import when a running import already exists', async () => {
@@ -152,8 +154,10 @@ describe('load — auto-import behaviour', () => {
 		});
 
 		const load = _createLoad(deps);
-		await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		if (!result) throw new Error('load returned void');
 
+		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
 
@@ -164,8 +168,10 @@ describe('load — auto-import behaviour', () => {
 		});
 
 		const load = _createLoad(deps);
-		await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+		if (!result) throw new Error('load returned void');
 
+		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
 		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
@@ -178,8 +184,10 @@ describe('load — auto-import behaviour', () => {
 		});
 
 		const load = _createLoad(deps);
-		await load({ url: makeUrl({ topic: 'filtered' }), locals: makeLocals(STUB_USER) } as never);
+		const result = await load({ url: makeUrl({ topic: 'filtered' }), locals: makeLocals(STUB_USER) } as never);
+		if (!result) throw new Error('load returned void');
 
+		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
 
@@ -187,8 +195,10 @@ describe('load — auto-import behaviour', () => {
 		const deps = makeDeps();
 
 		const load = _createLoad(deps);
-		await load({ url: makeUrl({ granularity: 'week' }), locals: makeLocals(STUB_USER) } as never);
+		const result = await load({ url: makeUrl({ granularity: 'week' }), locals: makeLocals(STUB_USER) } as never);
+		if (!result) throw new Error('load returned void');
 
+		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});
 });

@@ -74,24 +74,28 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 			topicIdFilter = topic?.id;
 		}
 
-		const unfilteredEventCount =
-			validGranularity === 'today' ? await deps.getEventCount({ months, days }) : 0;
+		const eventsPromise = (async () => {
+			const unfilteredEventCount =
+				validGranularity === 'today' ? await deps.getEventCount({ months, days }) : 0;
 
-		let eventList = await deps.getEvents({ months, days, topicIdFilter });
+			let eventList = await deps.getEvents({ months, days, topicIdFilter });
 
-		if (validGranularity === 'today' && unfilteredEventCount === 0) {
-			const month = anchorDate.getMonth() + 1;
-			const day = anchorDate.getDate();
-			const runningCount = await deps.getRunningImportCount(month, day);
-			if (runningCount === 0) {
-				await deps.runImportForDate(month, day);
-				eventList = await deps.getEvents({ months, days, topicIdFilter });
+			if (validGranularity === 'today' && unfilteredEventCount === 0) {
+				const month = anchorDate.getMonth() + 1;
+				const day = anchorDate.getDate();
+				const runningCount = await deps.getRunningImportCount(month, day);
+				if (runningCount === 0) {
+					await deps.runImportForDate(month, day);
+					eventList = await deps.getEvents({ months, days, topicIdFilter });
+				}
 			}
-		}
+
+			return eventList;
+		})();
 
 		return {
 			view: 'timeline',
-			events: eventList,
+			events: eventsPromise,
 			anchorDate: anchorDate.toISOString().split('T')[0],
 			granularity: validGranularity,
 			topicSlug,
