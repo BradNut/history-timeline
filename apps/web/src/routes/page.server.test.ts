@@ -34,6 +34,7 @@ function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}): P
 		getTopicsInWindow: vi.fn().mockResolvedValue([]),
 		getEvents: vi.fn().mockResolvedValue([]),
 		getEventCount: vi.fn().mockResolvedValue(0),
+		invalidateEventsCache: vi.fn().mockResolvedValue(undefined),
 		getRunningImportCount: vi.fn().mockResolvedValue(0),
 		runImportForDate: vi.fn().mockResolvedValue({ eventsUpserted: 1, unmappedCount: 0 }),
 		...overrides
@@ -47,6 +48,8 @@ function makeLocals(user?: typeof STUB_USER) {
 function expectNoTimelineWork(deps: ReturnType<typeof makeDeps>) {
 	expect(deps.getTopicsInWindow).not.toHaveBeenCalled();
 	expect(deps.getEvents).not.toHaveBeenCalled();
+	expect(deps.getEventCount).not.toHaveBeenCalled();
+	expect(deps.invalidateEventsCache).not.toHaveBeenCalled();
 	expect(deps.getRunningImportCount).not.toHaveBeenCalled();
 	expect(deps.runImportForDate).not.toHaveBeenCalled();
 }
@@ -94,6 +97,22 @@ describe('load — authentication branch', () => {
 		expect(deps.getEvents).toHaveBeenCalled();
 	});
 
+	it('parses and serializes the date param as a local calendar date', async () => {
+		const deps = makeDeps();
+
+		const result = await loadAsTimeline(deps, { date: '2024-06-15' });
+
+		expect(result.anchorDate).toBe('2024-06-15');
+		const eventsCall = vi.mocked(deps.getEvents).mock.calls[0][0];
+		expect(eventsCall.dates).toEqual([{ month: 6, day: 15 }]);
+		const topicsCall = vi.mocked(deps.getTopicsInWindow).mock.calls[0][0];
+		expect(topicsCall.dates).toEqual([
+			{ month: 6, day: 14 },
+			{ month: 6, day: 15 },
+			{ month: 6, day: 16 }
+		]);
+	});
+
 	it('returns topics scoped to the anchor date ±1 day window', async () => {
 		const windowedTopics = [{ id: 5, name: 'Scoped Topic', slug: 'scoped-topic' }];
 		const deps = makeDeps({
@@ -117,15 +136,12 @@ describe('load — authentication branch', () => {
 
 		await loadAsTimeline(deps, { date: '2024-01-31' });
 
-		const anchor = new Date('2024-01-31');
-		const expected = [-1, 0, 1].map((offset) => {
-			const d = new Date(anchor);
-			d.setDate(d.getDate() + offset);
-			return { month: d.getMonth() + 1, day: d.getDate() };
-		});
-
 		const call = vi.mocked(deps.getTopicsInWindow).mock.calls[0][0];
-		expect(call.dates).toEqual(expected);
+		expect(call.dates).toEqual([
+			{ month: 1, day: 30 },
+			{ month: 1, day: 31 },
+			{ month: 2, day: 1 }
+		]);
 	});
 
 	it('uses exact month-day pairs when the week window spans a month boundary', async () => {
@@ -133,16 +149,16 @@ describe('load — authentication branch', () => {
 
 		await loadAsTimeline(deps, { date: '2024-01-31', granularity: 'week' });
 
-		const anchor = new Date('2024-01-31');
-		const expected = [];
-		for (let i = -3; i <= 3; i++) {
-			const d = new Date(anchor);
-			d.setDate(d.getDate() + i);
-			expected.push({ month: d.getMonth() + 1, day: d.getDate() });
-		}
-
 		const call = vi.mocked(deps.getEvents).mock.calls[0][0];
-		expect(call.dates).toEqual(expected);
+		expect(call.dates).toEqual([
+			{ month: 1, day: 28 },
+			{ month: 1, day: 29 },
+			{ month: 1, day: 30 },
+			{ month: 1, day: 31 },
+			{ month: 2, day: 1 },
+			{ month: 2, day: 2 },
+			{ month: 2, day: 3 }
+		]);
 	});
 
 	it('returns landing-shaped data when locals.user is absent', async () => {
@@ -212,6 +228,21 @@ describe('load — auto-import behaviour', () => {
 		});
 
 		await expectAutoImportResult(deps, FRESH_EVENTS, false);
+	});
+
+	it('invalidates the event cache after importing so the second query is fresh', async () => {
+		const deps = makeDeps({
+			getEvents: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(FRESH_EVENTS),
+			getEventCount: vi.fn().mockResolvedValue(0)
+		});
+
+		const result = await loadAsTimeline(deps);
+		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
+
+		expect(deps.invalidateEventsCache).toHaveBeenCalledWith({
+			dates: [{ month: TODAY_MONTH, day: TODAY_DAY }],
+			topicIdFilter: undefined
+		});
 	});
 
 	it('does not trigger an import when the unfiltered day has events but the selected topic is empty', async () => {

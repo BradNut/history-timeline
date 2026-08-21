@@ -18,6 +18,7 @@ export type GetEventsParams = DateWindow & {
 type CacheDep = {
   get: (data: { prefix: string; key: string }) => Promise<string | null>;
   setWithExpiry: (data: { prefix: string; key: string; value: string; expiry: number }) => Promise<void>;
+  delete: (data: { prefix: string; key: string }) => Promise<void>;
 };
 
 type DbDep = {
@@ -188,4 +189,10 @@ export async function getEvents(params: GetEventsParams, deps?: Deps): Promise<E
   });
 
   return result;
+}
+
+export async function invalidateEventsCache(params: GetEventsParams, deps?: { cache: CacheDep }): Promise<void> {
+  const resolvedDeps = deps ?? { cache: redisService };
+  const key = buildCacheKey(params);
+  await resolvedDeps.cache.delete({ prefix: CACHE_PREFIX, key });
 }

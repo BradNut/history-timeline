@@ -2,7 +2,7 @@ import { and, count, eq, gt } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { importLogs } from '$lib/server/db/schema';
 import type { DateWindow } from '$lib/server/events';
-import { getEventCount, getEvents, getTopicsInWindow } from '$lib/server/events';
+import { getEventCount, getEvents, getTopicsInWindow, invalidateEventsCache } from '$lib/server/events';
 import { runImportForDate } from '$lib/server/import-actions';
 import type { PageServerLoad } from './$types';
 
@@ -24,6 +24,7 @@ type LoadDeps = {
 	getTopicsInWindow: typeof getTopicsInWindow;
 	getEvents: typeof getEvents;
 	getEventCount: typeof getEventCount;
+	invalidateEventsCache: typeof invalidateEventsCache;
 	getRunningImportCount: (month: number, day: number) => Promise<number>;
 	runImportForDate: typeof runImportForDate;
 };
@@ -34,6 +35,7 @@ const defaultDeps: LoadDeps = {
 	getTopicsInWindow,
 	getEvents,
 	getEventCount,
+	invalidateEventsCache,
 	getRunningImportCount: async (_month, _day) => {
 		const since = new Date(Date.now() - RUNNING_IMPORT_WINDOW_MS);
 		const rows = await db
@@ -63,7 +65,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 			return { view: 'landing', redirectTo, date: dateParam, granularity: validGranularity, topicSlug };
 		}
 
-		const anchorDate = dateParam ? new Date(dateParam) : new Date();
+		const anchorDate = dateParam ? parseLocalDate(dateParam) : new Date();
 		const dateRange = getDateRange(anchorDate, validGranularity);
 		const topicWindow = getTopicWindow(anchorDate);
 
@@ -87,6 +89,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 				const runningCount = await deps.getRunningImportCount(month, day);
 				if (runningCount === 0) {
 					await deps.runImportForDate(month, day);
+					await deps.invalidateEventsCache({ ...dateRange, topicIdFilter });
 					eventList = await deps.getEvents({ ...dateRange, topicIdFilter });
 				}
 			}
@@ -97,7 +100,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 		return {
 			view: 'timeline',
 			events: eventsPromise,
-			anchorDate: anchorDate.toISOString().split('T')[0],
+			anchorDate: formatLocalDate(anchorDate),
 			granularity: validGranularity,
 			topicSlug,
 			topics: allTopics
@@ -147,6 +150,18 @@ function getTopicWindow(anchorDate: Date): DateWindow {
 		dates.push({ month: d.getMonth() + 1, day: d.getDate() });
 	}
 	return datesToWindow(dates);
+}
+
+function parseLocalDate(dateString: string): Date {
+	const [year, month, day] = dateString.split('-').map(Number);
+	return new Date(year, month - 1, day);
+}
+
+function formatLocalDate(date: Date): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
 }
 
 export const load: PageServerLoad = _createLoad(defaultDeps);

@@ -42,7 +42,8 @@ function makeCacheMissDeps(dbResult: EventWithTopics[] = DB_EVENTS) {
 	return {
 		cache: {
 			get: vi.fn().mockResolvedValue(null),
-			setWithExpiry: vi.fn().mockResolvedValue(undefined)
+			setWithExpiry: vi.fn().mockResolvedValue(undefined),
+			delete: vi.fn().mockResolvedValue(undefined)
 		},
 		db: { query: vi.fn().mockResolvedValue(dbResult) }
 	};
@@ -59,7 +60,8 @@ describe('getEvents', () => {
 	it('returns cached events without querying the DB on a cache hit', async () => {
 		const cache = {
 			get: vi.fn().mockResolvedValue(JSON.stringify(CACHED_EVENTS)),
-			setWithExpiry: vi.fn()
+			setWithExpiry: vi.fn(),
+			delete: vi.fn()
 		};
 		const db = { query: vi.fn() };
 
@@ -68,6 +70,7 @@ describe('getEvents', () => {
 		expect(result).toEqual(CACHED_EVENTS);
 		expect(db.query).not.toHaveBeenCalled();
 		expect(cache.setWithExpiry).not.toHaveBeenCalled();
+		expect(cache.delete).not.toHaveBeenCalled();
 	});
 
 	it('queries the DB, caches the result, and returns events on a cache miss', async () => {
