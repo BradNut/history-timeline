@@ -64,7 +64,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 		}
 
 		const anchorDate = dateParam ? new Date(dateParam) : new Date();
-		const { months, days } = getDateRange(anchorDate, validGranularity);
+		const dateRange = getDateRange(anchorDate, validGranularity);
 		const topicWindow = getTopicWindow(anchorDate);
 
 		const allTopics = await deps.getTopicsInWindow(topicWindow);
@@ -77,9 +77,9 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 
 		const eventsPromise = (async () => {
 			const unfilteredEventCount =
-				validGranularity === 'today' ? await deps.getEventCount({ months, days }) : 0;
+				validGranularity === 'today' ? await deps.getEventCount(dateRange) : 0;
 
-			let eventList = await deps.getEvents({ months, days, topicIdFilter });
+			let eventList = await deps.getEvents({ ...dateRange, topicIdFilter });
 
 			if (validGranularity === 'today' && unfilteredEventCount === 0) {
 				const month = anchorDate.getMonth() + 1;
@@ -87,7 +87,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 				const runningCount = await deps.getRunningImportCount(month, day);
 				if (runningCount === 0) {
 					await deps.runImportForDate(month, day);
-					eventList = await deps.getEvents({ months, days, topicIdFilter });
+					eventList = await deps.getEvents({ ...dateRange, topicIdFilter });
 				}
 			}
 
@@ -106,10 +106,7 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 }
 
 function datesToWindow(dates: Array<{ month: number; day: number }>): DateWindow {
-	return {
-		months: [...new Set(dates.map((d) => d.month))],
-		days: [...new Set(dates.map((d) => d.day))]
-	};
+	return { dates: [...dates] };
 }
 
 function getDateRange(
@@ -120,7 +117,7 @@ function getDateRange(
 	const day = anchorDate.getDate();
 
 	if (granularity === 'today') {
-		return { months: [month], days: [day] };
+		return { dates: [{ month, day }] };
 	}
 
 	const dates: Array<{ month: number; day: number }> = [];

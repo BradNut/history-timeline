@@ -1,4 +1,4 @@
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, or } from 'drizzle-orm';
 import { db as defaultDb } from '$lib/server/databases/postgres';
 import { events, eventTopics, subtopics, topics } from '$lib/server/databases/postgres/drizzle-schema';
 import { REDIS_PREFIXES, redisService } from '$lib/server/databases/redis/redis';
@@ -8,8 +8,7 @@ const CACHE_PREFIX = REDIS_PREFIXES.EVENTS;
 const CACHE_TTL_SECONDS = 86400;
 
 export type DateWindow = {
-  months: number[];
-  days: number[];
+  dates: Array<{ month: number; day: number }>;
 };
 
 export type GetEventsParams = DateWindow & {
@@ -34,6 +33,7 @@ type TopicsInWindowDbDep = {
   query: (params: DateWindow) => Promise<Array<{ id: number; name: string; slug: string }>>;
 };
 
+
 type TopicsInWindowDeps = {
   db: TopicsInWindowDbDep;
 };
@@ -47,10 +47,9 @@ type EventCountDeps = {
 };
 
 function buildCacheKey(params: GetEventsParams): string {
-  const months = params.months.join(',');
-  const days = params.days.join(',');
+  const dates = params.dates.map((d) => `${d.month}-${d.day}`).join(',');
   const topic = params.topicIdFilter ?? 'null';
-  return `${months}-${days}-${topic}`;
+  return `${dates}-${topic}`;
 }
 
 export function eventsWithTopicsQuery() {
@@ -78,11 +77,11 @@ export function eventsWithTopicsQuery() {
 }
 
 async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> {
+  const datePredicates = params.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
   const rows = await eventsWithTopicsQuery()
     .where(
       and(
-        inArray(events.month, params.months),
-        inArray(events.day, params.days),
+        or(...datePredicates),
         params.topicIdFilter ? eq(eventTopics.topicId, params.topicIdFilter) : undefined,
       ),
     )
@@ -124,6 +123,7 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
 async function queryTopicsInWindow(
   params: DateWindow,
 ): Promise<Array<{ id: number; name: string; slug: string }>> {
+  const datePredicates = params.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
   return defaultDb
     .select({
       id: topics.id,
@@ -133,12 +133,7 @@ async function queryTopicsInWindow(
     .from(events)
     .innerJoin(eventTopics, eq(eventTopics.eventId, events.id))
     .innerJoin(topics, eq(topics.id, eventTopics.topicId))
-    .where(
-      and(
-        inArray(events.month, params.months),
-        inArray(events.day, params.days),
-      ),
-    )
+    .where(or(...datePredicates))
     .groupBy(topics.id, topics.name, topics.slug)
     .orderBy(topics.name);
 }
@@ -152,15 +147,11 @@ export async function getTopicsInWindow(
 }
 
 async function queryEventCount(params: DateWindow): Promise<number> {
+  const datePredicates = params.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
   const rows = await defaultDb
     .select({ value: count() })
     .from(events)
-    .where(
-      and(
-        inArray(events.month, params.months),
-        inArray(events.day, params.days),
-      ),
-    );
+    .where(or(...datePredicates));
 
   return rows[0]?.value ?? 0;
 }

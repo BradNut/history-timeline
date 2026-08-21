@@ -68,7 +68,7 @@ async function expectAutoImportResult(
 ) {
 	const result = await loadAsTimeline(deps);
 	await expect(result.events).resolves.toEqual(expectedEvents);
-	expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
+	expect(deps.getEventCount).toHaveBeenCalledWith({ dates: [{ month: TODAY_MONTH, day: TODAY_DAY }] });
 	if (shouldImport) {
 		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
 	} else {
@@ -104,13 +104,45 @@ describe('load — authentication branch', () => {
 
 		expect(deps.getTopicsInWindow).toHaveBeenCalledOnce();
 		const call = vi.mocked(deps.getTopicsInWindow).mock.calls[0][0];
-		expect(call).toHaveProperty('months');
-		expect(call).toHaveProperty('days');
-		expect(call.days).toHaveLength(3);
+		expect(call).toHaveProperty('dates');
+		expect(call.dates).toHaveLength(3);
 		expect(result).toMatchObject({
 			view: 'timeline',
 			topics: windowedTopics
 		});
+	});
+
+	it('uses exact month-day pairs when the topic window spans a month boundary', async () => {
+		const deps = makeDeps();
+
+		await loadAsTimeline(deps, { date: '2024-01-31' });
+
+		const anchor = new Date('2024-01-31');
+		const expected = [-1, 0, 1].map((offset) => {
+			const d = new Date(anchor);
+			d.setDate(d.getDate() + offset);
+			return { month: d.getMonth() + 1, day: d.getDate() };
+		});
+
+		const call = vi.mocked(deps.getTopicsInWindow).mock.calls[0][0];
+		expect(call.dates).toEqual(expected);
+	});
+
+	it('uses exact month-day pairs when the week window spans a month boundary', async () => {
+		const deps = makeDeps();
+
+		await loadAsTimeline(deps, { date: '2024-01-31', granularity: 'week' });
+
+		const anchor = new Date('2024-01-31');
+		const expected = [];
+		for (let i = -3; i <= 3; i++) {
+			const d = new Date(anchor);
+			d.setDate(d.getDate() + i);
+			expected.push({ month: d.getMonth() + 1, day: d.getDate() });
+		}
+
+		const call = vi.mocked(deps.getEvents).mock.calls[0][0];
+		expect(call.dates).toEqual(expected);
 	});
 
 	it('returns landing-shaped data when locals.user is absent', async () => {
