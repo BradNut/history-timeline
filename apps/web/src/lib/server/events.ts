@@ -76,8 +76,12 @@ export function eventsWithTopicsQuery() {
     .leftJoin(subtopics, eq(subtopics.id, eventTopics.subtopicId));
 }
 
+function buildDatePredicates(window: DateWindow) {
+  return window.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
+}
+
 async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> {
-  const datePredicates = params.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
+  const datePredicates = buildDatePredicates(params);
   const rows = await eventsWithTopicsQuery()
     .where(
       and(
@@ -123,7 +127,7 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
 async function queryTopicsInWindow(
   params: DateWindow,
 ): Promise<Array<{ id: number; name: string; slug: string }>> {
-  const datePredicates = params.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
+  const datePredicates = buildDatePredicates(params);
   return defaultDb
     .select({
       id: topics.id,
@@ -147,7 +151,7 @@ export async function getTopicsInWindow(
 }
 
 async function queryEventCount(params: DateWindow): Promise<number> {
-  const datePredicates = params.dates.map((d) => and(eq(events.month, d.month), eq(events.day, d.day)));
+  const datePredicates = buildDatePredicates(params);
   const rows = await defaultDb
     .select({ value: count() })
     .from(events)
