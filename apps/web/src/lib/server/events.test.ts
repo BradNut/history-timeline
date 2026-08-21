@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { EventWithTopics } from '../../routes/+page.server';
 import { getEventCount, getEvents, getTopicsInWindow } from './events';
 
@@ -38,6 +38,16 @@ function makeParams(overrides: Partial<Parameters<typeof getEvents>[0]> = {}) {
 	return { months: [6], days: [21], topicIdFilter: undefined, ...overrides };
 }
 
+function makeCacheMissDeps(dbResult: EventWithTopics[] = DB_EVENTS) {
+	return {
+		cache: {
+			get: vi.fn().mockResolvedValue(null),
+			setWithExpiry: vi.fn().mockResolvedValue(undefined)
+		},
+		db: { query: vi.fn().mockResolvedValue(dbResult) }
+	};
+}
+
 describe('getEvents', () => {
 	it('returns cached events without querying the DB on a cache hit', async () => {
 		const cache = {
@@ -54,11 +64,7 @@ describe('getEvents', () => {
 	});
 
 	it('queries the DB, caches the result, and returns events on a cache miss', async () => {
-		const cache = {
-			get: vi.fn().mockResolvedValue(null),
-			setWithExpiry: vi.fn().mockResolvedValue(undefined)
-		};
-		const db = { query: vi.fn().mockResolvedValue(DB_EVENTS) };
+		const { cache, db } = makeCacheMissDeps();
 
 		const result = await getEvents(makeParams(), { cache, db: db as never });
 
@@ -71,11 +77,7 @@ describe('getEvents', () => {
 	});
 
 	it('falls through to the DB and returns events when the cache is unavailable', async () => {
-		const cache = {
-			get: vi.fn().mockResolvedValue(null),
-			setWithExpiry: vi.fn().mockResolvedValue(undefined)
-		};
-		const db = { query: vi.fn().mockResolvedValue(DB_EVENTS) };
+		const { cache, db } = makeCacheMissDeps();
 
 		const result = await getEvents(makeParams(), { cache, db: db as never });
 

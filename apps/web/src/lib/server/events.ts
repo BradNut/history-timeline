@@ -16,10 +16,6 @@ export type GetEventsParams = DateWindow & {
   topicIdFilter: number | undefined;
 };
 
-export type GetTopicsInWindowParams = DateWindow;
-
-export type GetEventCountParams = DateWindow;
-
 type CacheDep = {
   get: (data: { prefix: string; key: string }) => Promise<string | null>;
   setWithExpiry: (data: { prefix: string; key: string; value: string; expiry: number }) => Promise<void>;
