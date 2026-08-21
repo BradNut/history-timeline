@@ -61,6 +61,21 @@ async function loadAsTimeline(
 	return result;
 }
 
+async function expectAutoImportResult(
+	deps: ReturnType<typeof makeDeps>,
+	expectedEvents: EventWithTopics[],
+	shouldImport: boolean
+) {
+	const result = await loadAsTimeline(deps);
+	await expect(result.events).resolves.toEqual(expectedEvents);
+	expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
+	if (shouldImport) {
+		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
+	} else {
+		expect(deps.runImportForDate).not.toHaveBeenCalled();
+	}
+}
+
 describe('load — authentication branch', () => {
 	it('returns timeline-shaped data when locals.user is present', async () => {
 		const deps = makeDeps({
@@ -144,11 +159,7 @@ describe('load — auto-import behaviour', () => {
 			getEventCount: vi.fn().mockResolvedValue(0)
 		});
 
-		const result = await loadAsTimeline(deps);
-
-		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
-		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
-		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
+		await expectAutoImportResult(deps, FRESH_EVENTS, true);
 	});
 
 	it('skips the import when a running import already exists', async () => {
@@ -168,11 +179,7 @@ describe('load — auto-import behaviour', () => {
 			getEventCount: vi.fn().mockResolvedValue(3)
 		});
 
-		const result = await loadAsTimeline(deps);
-
-		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
-		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
-		expect(deps.runImportForDate).not.toHaveBeenCalled();
+		await expectAutoImportResult(deps, FRESH_EVENTS, false);
 	});
 
 	it('does not trigger an import when the unfiltered day has events but the selected topic is empty', async () => {
