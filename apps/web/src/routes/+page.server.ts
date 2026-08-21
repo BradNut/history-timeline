@@ -1,6 +1,7 @@
 import { and, count, eq, gt } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { importLogs } from '$lib/server/db/schema';
+import type { DateWindow } from '$lib/server/events';
 import { getEventCount, getEvents, getTopicsInWindow } from '$lib/server/events';
 import { runImportForDate } from '$lib/server/import-actions';
 import type { PageServerLoad } from './$types';
@@ -104,10 +105,17 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 	};
 }
 
+function datesToWindow(dates: Array<{ month: number; day: number }>): DateWindow {
+	return {
+		months: [...new Set(dates.map((d) => d.month))],
+		days: [...new Set(dates.map((d) => d.day))]
+	};
+}
+
 function getDateRange(
 	anchorDate: Date,
 	granularity: 'today' | 'week' | 'month'
-): { months: number[]; days: number[] } {
+): DateWindow {
 	const month = anchorDate.getMonth() + 1;
 	const day = anchorDate.getDate();
 
@@ -131,23 +139,17 @@ function getDateRange(
 		}
 	}
 
-	return {
-		months: [...new Set(dates.map((d) => d.month))],
-		days: [...new Set(dates.map((d) => d.day))]
-	};
+	return datesToWindow(dates);
 }
 
-function getTopicWindow(anchorDate: Date): { months: number[]; days: number[] } {
+function getTopicWindow(anchorDate: Date): DateWindow {
 	const dates: Array<{ month: number; day: number }> = [];
 	for (const offset of [-1, 0, 1]) {
 		const d = new Date(anchorDate);
 		d.setDate(d.getDate() + offset);
 		dates.push({ month: d.getMonth() + 1, day: d.getDate() });
 	}
-	return {
-		months: [...new Set(dates.map((d) => d.month))],
-		days: [...new Set(dates.map((d) => d.day))]
-	};
+	return datesToWindow(dates);
 }
 
 export const load: PageServerLoad = _createLoad(defaultDeps);

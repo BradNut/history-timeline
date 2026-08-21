@@ -7,21 +7,18 @@ import type { EventWithTopics } from '../../routes/+page.server';
 const CACHE_PREFIX = REDIS_PREFIXES.EVENTS;
 const CACHE_TTL_SECONDS = 86400;
 
-export type GetEventsParams = {
+export type DateWindow = {
   months: number[];
   days: number[];
+};
+
+export type GetEventsParams = DateWindow & {
   topicIdFilter: number | undefined;
 };
 
-export type GetTopicsInWindowParams = {
-  months: number[];
-  days: number[];
-};
+export type GetTopicsInWindowParams = DateWindow;
 
-export type GetEventCountParams = {
-  months: number[];
-  days: number[];
-};
+export type GetEventCountParams = DateWindow;
 
 type CacheDep = {
   get: (data: { prefix: string; key: string }) => Promise<string | null>;
@@ -38,7 +35,7 @@ type Deps = {
 };
 
 type TopicsInWindowDbDep = {
-  query: (params: GetTopicsInWindowParams) => Promise<Array<{ id: number; name: string; slug: string }>>;
+  query: (params: DateWindow) => Promise<Array<{ id: number; name: string; slug: string }>>;
 };
 
 type TopicsInWindowDeps = {
@@ -46,7 +43,7 @@ type TopicsInWindowDeps = {
 };
 
 type EventCountDbDep = {
-  count: (params: GetEventCountParams) => Promise<number>;
+  count: (params: DateWindow) => Promise<number>;
 };
 
 type EventCountDeps = {
@@ -129,7 +126,7 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
 }
 
 async function queryTopicsInWindow(
-  params: GetTopicsInWindowParams,
+  params: DateWindow,
 ): Promise<Array<{ id: number; name: string; slug: string }>> {
   return defaultDb
     .select({
@@ -151,14 +148,14 @@ async function queryTopicsInWindow(
 }
 
 export async function getTopicsInWindow(
-  params: GetTopicsInWindowParams,
+  params: DateWindow,
   deps?: TopicsInWindowDeps,
 ): Promise<Array<{ id: number; name: string; slug: string }>> {
   const resolvedDeps = deps ?? { db: { query: queryTopicsInWindow } };
   return resolvedDeps.db.query(params);
 }
 
-async function queryEventCount(params: GetEventCountParams): Promise<number> {
+async function queryEventCount(params: DateWindow): Promise<number> {
   const rows = await defaultDb
     .select({ value: count() })
     .from(events)
@@ -172,7 +169,7 @@ async function queryEventCount(params: GetEventCountParams): Promise<number> {
   return rows[0]?.value ?? 0;
 }
 
-export async function getEventCount(params: GetEventCountParams, deps?: EventCountDeps): Promise<number> {
+export async function getEventCount(params: DateWindow, deps?: EventCountDeps): Promise<number> {
   const resolvedDeps = deps ?? { db: { count: queryEventCount } };
   return resolvedDeps.db.count(params);
 }
