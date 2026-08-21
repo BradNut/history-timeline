@@ -44,15 +44,30 @@ function makeLocals(user?: typeof STUB_USER) {
 	return { user } as App.Locals;
 }
 
+function expectNoTimelineWork(deps: ReturnType<typeof makeDeps>) {
+	expect(deps.getTopicsInWindow).not.toHaveBeenCalled();
+	expect(deps.getEvents).not.toHaveBeenCalled();
+	expect(deps.getRunningImportCount).not.toHaveBeenCalled();
+	expect(deps.runImportForDate).not.toHaveBeenCalled();
+}
+
+async function loadAsTimeline(
+	deps: ReturnType<typeof makeDeps> = makeDeps(),
+	params: Record<string, string> = {}
+) {
+	const load = _createLoad(deps);
+	const result = await load({ url: makeUrl(params), locals: makeLocals(STUB_USER) } as never);
+	if (!result) throw new Error('load returned void');
+	return result;
+}
+
 describe('load — authentication branch', () => {
 	it('returns timeline-shaped data when locals.user is present', async () => {
 		const deps = makeDeps({
 			getEvents: vi.fn().mockResolvedValue(FRESH_EVENTS)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
-		if (!result) throw new Error('load returned void');
+		const result = await loadAsTimeline(deps);
 
 		expect(result.view).toBe('timeline');
 		expect(result).toMatchObject({
@@ -70,11 +85,7 @@ describe('load — authentication branch', () => {
 			getTopicsInWindow: vi.fn().mockResolvedValue(windowedTopics)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({
-			url: makeUrl({ date: '2024-07-20' }),
-			locals: makeLocals(STUB_USER)
-		} as never);
+		const result = await loadAsTimeline(deps, { date: '2024-07-20' });
 
 		expect(deps.getTopicsInWindow).toHaveBeenCalledOnce();
 		const call = vi.mocked(deps.getTopicsInWindow).mock.calls[0][0];
@@ -100,10 +111,7 @@ describe('load — authentication branch', () => {
 			granularity: 'today',
 			topicSlug: null
 		});
-		expect(deps.getTopicsInWindow).not.toHaveBeenCalled();
-		expect(deps.getEvents).not.toHaveBeenCalled();
-		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
-		expect(deps.runImportForDate).not.toHaveBeenCalled();
+		expectNoTimelineWork(deps);
 	});
 
 	it('preserves incoming timeline query params on the landing view', async () => {
@@ -122,10 +130,7 @@ describe('load — authentication branch', () => {
 			granularity: 'week',
 			topicSlug: 'historical'
 		});
-		expect(deps.getTopicsInWindow).not.toHaveBeenCalled();
-		expect(deps.getEvents).not.toHaveBeenCalled();
-		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
-		expect(deps.runImportForDate).not.toHaveBeenCalled();
+		expectNoTimelineWork(deps);
 	});
 });
 
@@ -139,9 +144,7 @@ describe('load — auto-import behaviour', () => {
 			getEventCount: vi.fn().mockResolvedValue(0)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
-		if (!result) throw new Error('load returned void');
+		const result = await loadAsTimeline(deps);
 
 		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
 		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
@@ -153,9 +156,7 @@ describe('load — auto-import behaviour', () => {
 			getRunningImportCount: vi.fn().mockResolvedValue(1)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
-		if (!result) throw new Error('load returned void');
+		const result = await loadAsTimeline(deps);
 
 		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
@@ -167,9 +168,7 @@ describe('load — auto-import behaviour', () => {
 			getEventCount: vi.fn().mockResolvedValue(3)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
-		if (!result) throw new Error('load returned void');
+		const result = await loadAsTimeline(deps);
 
 		await expect(result.events).resolves.toEqual(FRESH_EVENTS);
 		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
@@ -183,9 +182,7 @@ describe('load — auto-import behaviour', () => {
 			getEventCount: vi.fn().mockResolvedValue(5)
 		});
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl({ topic: 'filtered' }), locals: makeLocals(STUB_USER) } as never);
-		if (!result) throw new Error('load returned void');
+		const result = await loadAsTimeline(deps, { topic: 'filtered' });
 
 		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
@@ -194,9 +191,7 @@ describe('load — auto-import behaviour', () => {
 	it('does not trigger an import when granularity is not today', async () => {
 		const deps = makeDeps();
 
-		const load = _createLoad(deps);
-		const result = await load({ url: makeUrl({ granularity: 'week' }), locals: makeLocals(STUB_USER) } as never);
-		if (!result) throw new Error('load returned void');
+		const result = await loadAsTimeline(deps, { granularity: 'week' });
 
 		await expect(result.events).resolves.toEqual([]);
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
