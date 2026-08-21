@@ -1,7 +1,7 @@
 import { and, count, eq, gt } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { importLogs, topics } from '$lib/server/db/schema';
-import { getEvents } from '$lib/server/events';
+import { getEventCount, getEvents } from '$lib/server/events';
 import { runImportForDate } from '$lib/server/import-actions';
 import type { PageServerLoad } from './$types';
 
@@ -22,6 +22,7 @@ export type EventWithTopics = {
 type LoadDeps = {
 	getTopics: () => Promise<Array<{ id: number; name: string; slug: string; createdAt: Date }>>;
 	getEvents: typeof getEvents;
+	getEventCount: typeof getEventCount;
 	getRunningImportCount: (month: number, day: number) => Promise<number>;
 	runImportForDate: typeof runImportForDate;
 };
@@ -31,6 +32,7 @@ const RUNNING_IMPORT_WINDOW_MS = 5 * 60 * 1000;
 const defaultDeps: LoadDeps = {
 	getTopics: () => db.select().from(topics).orderBy(topics.name),
 	getEvents,
+	getEventCount,
 	getRunningImportCount: async (_month, _day) => {
 		const since = new Date(Date.now() - RUNNING_IMPORT_WINDOW_MS);
 		const rows = await db
@@ -71,9 +73,12 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 			topicIdFilter = topic?.id;
 		}
 
+		const unfilteredEventCount =
+			validGranularity === 'today' ? await deps.getEventCount({ months, days }) : 0;
+
 		let eventList = await deps.getEvents({ months, days, topicIdFilter });
 
-		if (validGranularity === 'today' && eventList.length === 0) {
+		if (validGranularity === 'today' && unfilteredEventCount === 0) {
 			const month = anchorDate.getMonth() + 1;
 			const day = anchorDate.getDate();
 			const runningCount = await deps.getRunningImportCount(month, day);

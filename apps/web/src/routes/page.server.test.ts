@@ -29,10 +29,11 @@ function makeUrl(params: Record<string, string> = {}) {
 	return url;
 }
 
-function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}) {
+function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}): Parameters<typeof _createLoad>[0] {
 	return {
 		getTopics: vi.fn().mockResolvedValue([]),
 		getEvents: vi.fn().mockResolvedValue([]),
+		getEventCount: vi.fn().mockResolvedValue(0),
 		getRunningImportCount: vi.fn().mockResolvedValue(0),
 		runImportForDate: vi.fn().mockResolvedValue({ eventsUpserted: 1, unmappedCount: 0 }),
 		...overrides
@@ -110,12 +111,14 @@ describe('load — auto-import behaviour', () => {
 			getEvents: vi
 				.fn()
 				.mockResolvedValueOnce([])
-				.mockResolvedValueOnce(FRESH_EVENTS)
+				.mockResolvedValueOnce(FRESH_EVENTS),
+			getEventCount: vi.fn().mockResolvedValue(0)
 		});
 
 		const load = _createLoad(deps);
 		const result = await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
 
+		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
 		expect(deps.runImportForDate).toHaveBeenCalledWith(TODAY_MONTH, TODAY_DAY);
 		expect(result).toMatchObject({ view: 'timeline', events: FRESH_EVENTS });
 	});
@@ -133,11 +136,26 @@ describe('load — auto-import behaviour', () => {
 
 	it('does not trigger an import when events already exist for today', async () => {
 		const deps = makeDeps({
-			getEvents: vi.fn().mockResolvedValue(FRESH_EVENTS)
+			getEvents: vi.fn().mockResolvedValue(FRESH_EVENTS),
+			getEventCount: vi.fn().mockResolvedValue(3)
 		});
 
 		const load = _createLoad(deps);
 		await load({ url: makeUrl(), locals: makeLocals(STUB_USER) } as never);
+
+		expect(deps.getEventCount).toHaveBeenCalledWith({ months: [TODAY_MONTH], days: [TODAY_DAY] });
+		expect(deps.runImportForDate).not.toHaveBeenCalled();
+	});
+
+	it('does not trigger an import when the unfiltered day has events but the selected topic is empty', async () => {
+		const deps = makeDeps({
+			getTopics: vi.fn().mockResolvedValue([{ id: 7, name: 'Filtered Topic', slug: 'filtered' }]),
+			getEvents: vi.fn().mockResolvedValue([]),
+			getEventCount: vi.fn().mockResolvedValue(5)
+		});
+
+		const load = _createLoad(deps);
+		await load({ url: makeUrl({ topic: 'filtered' }), locals: makeLocals(STUB_USER) } as never);
 
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
 	});

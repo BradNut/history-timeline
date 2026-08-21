@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getEvents } from './events';
+import { getEventCount, getEvents } from './events';
 import type { EventWithTopics } from '../../routes/+page.server';
 
 const CACHED_EVENTS: EventWithTopics[] = [
@@ -81,5 +81,24 @@ describe('getEvents', () => {
 
 		expect(result).toEqual(DB_EVENTS);
 		expect(db.query).toHaveBeenCalledOnce();
+	});
+});
+
+describe('getEventCount', () => {
+	it('returns the number of events matching the month/day set', async () => {
+		const db = { count: vi.fn().mockResolvedValue(5) };
+
+		const result = await getEventCount({ months: [6], days: [21] }, { db });
+
+		expect(result).toBe(5);
+		expect(db.count).toHaveBeenCalledWith({ months: [6], days: [21] });
+	});
+
+	it('returns zero when no events match', async () => {
+		const db = { count: vi.fn().mockResolvedValue(0) };
+
+		const result = await getEventCount({ months: [6], days: [21] }, { db });
+
+		expect(result).toBe(0);
 	});
 });

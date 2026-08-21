@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 import { db as defaultDb } from '$lib/server/databases/postgres';
 import { events, eventTopics, subtopics, topics } from '$lib/server/databases/postgres/drizzle-schema';
 import { REDIS_PREFIXES, redisService } from '$lib/server/databases/redis/redis';
@@ -13,6 +13,11 @@ export type GetEventsParams = {
   topicIdFilter: number | undefined;
 };
 
+export type GetEventCountParams = {
+  months: number[];
+  days: number[];
+};
+
 type CacheDep = {
   get: (data: { prefix: string; key: string }) => Promise<string | null>;
   setWithExpiry: (data: { prefix: string; key: string; value: string; expiry: number }) => Promise<void>;
@@ -25,6 +30,14 @@ type DbDep = {
 type Deps = {
   cache: CacheDep;
   db: DbDep;
+};
+
+type EventCountDbDep = {
+  count: (params: GetEventCountParams) => Promise<number>;
+};
+
+type EventCountDeps = {
+  db: EventCountDbDep;
 };
 
 function buildCacheKey(params: GetEventsParams): string {
@@ -100,6 +113,25 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
   }
 
   return [...eventsMap.values()].sort((a, b) => b.year - a.year);
+}
+
+async function queryEventCount(params: GetEventCountParams): Promise<number> {
+  const rows = await defaultDb
+    .select({ value: count() })
+    .from(events)
+    .where(
+      and(
+        inArray(events.month, params.months),
+        inArray(events.day, params.days),
+      ),
+    );
+
+  return rows[0]?.value ?? 0;
+}
+
+export async function getEventCount(params: GetEventCountParams, deps?: EventCountDeps): Promise<number> {
+  const resolvedDeps = deps ?? { db: { count: queryEventCount } };
+  return resolvedDeps.db.count(params);
 }
 
 export async function getEvents(params: GetEventsParams, deps?: Deps): Promise<EventWithTopics[]> {
