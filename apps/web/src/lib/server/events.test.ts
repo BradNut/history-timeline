@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { getEvents } from './events';
+import { getEvents, getTopicsInWindow } from './events';
 import type { EventWithTopics } from '../../routes/+page.server';
 
 const CACHED_EVENTS: EventWithTopics[] = [
@@ -81,5 +81,53 @@ describe('getEvents', () => {
 
 		expect(result).toEqual(DB_EVENTS);
 		expect(db.query).toHaveBeenCalledOnce();
+	});
+});
+
+const TOPIC_A = { id: 1, name: 'Topic A', slug: 'topic-a' };
+const TOPIC_B = { id: 2, name: 'Topic B', slug: 'topic-b' };
+const TOPIC_C = { id: 3, name: 'Topic C', slug: 'topic-c' };
+
+const ALL_TOPICS = [TOPIC_A, TOPIC_B, TOPIC_C];
+
+const TOPIC_EVENTS = [
+	{ topicId: 1, month: 6, day: 19 },
+	{ topicId: 1, month: 6, day: 20 },
+	{ topicId: 2, month: 6, day: 21 },
+	{ topicId: 3, month: 6, day: 25 }
+];
+
+function createMockTopicsDb() {
+	return {
+		query: vi.fn(async (params: { months: number[]; days: number[] }) => {
+			const months = new Set(params.months);
+			const days = new Set(params.days);
+			const topicIds = new Set(
+				TOPIC_EVENTS.filter((e) => months.has(e.month) && days.has(e.day)).map((e) => e.topicId)
+			);
+			return ALL_TOPICS.filter((t) => topicIds.has(t.id));
+		})
+	};
+}
+
+describe('getTopicsInWindow', () => {
+	it('returns only topics that have events inside the window', async () => {
+		const db = createMockTopicsDb();
+		const result = await getTopicsInWindow({ months: [6], days: [20, 21, 22] }, { db });
+		expect(result.map((t) => t.id)).toEqual([1, 2]);
+	});
+
+	it('excludes topics whose events fall outside the window', async () => {
+		const db = createMockTopicsDb();
+		const result = await getTopicsInWindow({ months: [6], days: [21] }, { db });
+		expect(result).toEqual([TOPIC_B]);
+	});
+
+	it('deduplicates topics when multiple events match', async () => {
+		const db = createMockTopicsDb();
+		const result = await getTopicsInWindow({ months: [6], days: [19, 20, 21] }, { db });
+		const ids = result.map((t) => t.id);
+		expect(ids).toEqual([...new Set(ids)]);
+		expect(ids).toContain(1);
 	});
 });

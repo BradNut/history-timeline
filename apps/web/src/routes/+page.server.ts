@@ -1,7 +1,7 @@
 import { and, count, eq, gt } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { importLogs, topics } from '$lib/server/db/schema';
-import { getEvents } from '$lib/server/events';
+import { importLogs } from '$lib/server/db/schema';
+import { getEvents, getTopicsInWindow } from '$lib/server/events';
 import { runImportForDate } from '$lib/server/import-actions';
 import type { PageServerLoad } from './$types';
 
@@ -20,7 +20,7 @@ export type EventWithTopics = {
 };
 
 type LoadDeps = {
-	getTopics: () => Promise<Array<{ id: number; name: string; slug: string; createdAt: Date }>>;
+	getTopicsInWindow: typeof getTopicsInWindow;
 	getEvents: typeof getEvents;
 	getRunningImportCount: (month: number, day: number) => Promise<number>;
 	runImportForDate: typeof runImportForDate;
@@ -29,7 +29,7 @@ type LoadDeps = {
 const RUNNING_IMPORT_WINDOW_MS = 5 * 60 * 1000;
 
 const defaultDeps: LoadDeps = {
-	getTopics: () => db.select().from(topics).orderBy(topics.name),
+	getTopicsInWindow,
 	getEvents,
 	getRunningImportCount: async (_month, _day) => {
 		const since = new Date(Date.now() - RUNNING_IMPORT_WINDOW_MS);
@@ -62,8 +62,9 @@ export function _createLoad(deps: LoadDeps): PageServerLoad {
 
 		const anchorDate = dateParam ? new Date(dateParam) : new Date();
 		const { months, days } = getDateRange(anchorDate, validGranularity);
+		const topicWindow = getTopicWindow(anchorDate);
 
-		const allTopics = await deps.getTopics();
+		const allTopics = await deps.getTopicsInWindow(topicWindow);
 
 		let topicIdFilter: number | undefined;
 		if (topicSlug) {
@@ -121,6 +122,19 @@ function getDateRange(
 		}
 	}
 
+	return {
+		months: [...new Set(dates.map((d) => d.month))],
+		days: [...new Set(dates.map((d) => d.day))]
+	};
+}
+
+function getTopicWindow(anchorDate: Date): { months: number[]; days: number[] } {
+	const dates: Array<{ month: number; day: number }> = [];
+	for (const offset of [-1, 0, 1]) {
+		const d = new Date(anchorDate);
+		d.setDate(d.getDate() + offset);
+		dates.push({ month: d.getMonth() + 1, day: d.getDate() });
+	}
 	return {
 		months: [...new Set(dates.map((d) => d.month))],
 		days: [...new Set(dates.map((d) => d.day))]

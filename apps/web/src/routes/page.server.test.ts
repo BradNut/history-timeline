@@ -29,9 +29,9 @@ function makeUrl(params: Record<string, string> = {}) {
 	return url;
 }
 
-function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}) {
+function makeDeps(overrides: Partial<Parameters<typeof _createLoad>[0]> = {}): Parameters<typeof _createLoad>[0] {
 	return {
-		getTopics: vi.fn().mockResolvedValue([]),
+		getTopicsInWindow: vi.fn().mockResolvedValue([]),
 		getEvents: vi.fn().mockResolvedValue([]),
 		getRunningImportCount: vi.fn().mockResolvedValue(0),
 		runImportForDate: vi.fn().mockResolvedValue({ eventsUpserted: 1, unmappedCount: 0 }),
@@ -62,6 +62,29 @@ describe('load — authentication branch', () => {
 		expect(deps.getEvents).toHaveBeenCalled();
 	});
 
+	it('returns topics scoped to the anchor date ±1 day window', async () => {
+		const windowedTopics = [{ id: 5, name: 'Scoped Topic', slug: 'scoped-topic' }];
+		const deps = makeDeps({
+			getTopicsInWindow: vi.fn().mockResolvedValue(windowedTopics)
+		});
+
+		const load = _createLoad(deps);
+		const result = await load({
+			url: makeUrl({ date: '2024-07-20' }),
+			locals: makeLocals(STUB_USER)
+		} as never);
+
+		expect(deps.getTopicsInWindow).toHaveBeenCalledOnce();
+		const call = deps.getTopicsInWindow.mock.calls[0][0];
+		expect(call).toHaveProperty('months');
+		expect(call).toHaveProperty('days');
+		expect(call.days).toHaveLength(3);
+		expect(result).toMatchObject({
+			view: 'timeline',
+			topics: windowedTopics
+		});
+	});
+
 	it('returns landing-shaped data when locals.user is absent', async () => {
 		const deps = makeDeps();
 
@@ -75,7 +98,7 @@ describe('load — authentication branch', () => {
 			granularity: 'today',
 			topicSlug: null
 		});
-		expect(deps.getTopics).not.toHaveBeenCalled();
+		expect(deps.getTopicsInWindow).not.toHaveBeenCalled();
 		expect(deps.getEvents).not.toHaveBeenCalled();
 		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
 		expect(deps.runImportForDate).not.toHaveBeenCalled();
@@ -97,7 +120,7 @@ describe('load — authentication branch', () => {
 			granularity: 'week',
 			topicSlug: 'historical'
 		});
-		expect(deps.getTopics).not.toHaveBeenCalled();
+		expect(deps.getTopicsInWindow).not.toHaveBeenCalled();
 		expect(deps.getEvents).not.toHaveBeenCalled();
 		expect(deps.getRunningImportCount).not.toHaveBeenCalled();
 		expect(deps.runImportForDate).not.toHaveBeenCalled();

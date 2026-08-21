@@ -13,6 +13,11 @@ export type GetEventsParams = {
   topicIdFilter: number | undefined;
 };
 
+export type GetTopicsInWindowParams = {
+  months: number[];
+  days: number[];
+};
+
 type CacheDep = {
   get: (data: { prefix: string; key: string }) => Promise<string | null>;
   setWithExpiry: (data: { prefix: string; key: string; value: string; expiry: number }) => Promise<void>;
@@ -25,6 +30,14 @@ type DbDep = {
 type Deps = {
   cache: CacheDep;
   db: DbDep;
+};
+
+type TopicsInWindowDbDep = {
+  query: (params: GetTopicsInWindowParams) => Promise<Array<{ id: number; name: string; slug: string }>>;
+};
+
+type TopicsInWindowDeps = {
+  db: TopicsInWindowDbDep;
 };
 
 function buildCacheKey(params: GetEventsParams): string {
@@ -100,6 +113,36 @@ async function queryEvents(params: GetEventsParams): Promise<EventWithTopics[]> 
   }
 
   return [...eventsMap.values()].sort((a, b) => b.year - a.year);
+}
+
+async function queryTopicsInWindow(
+  params: GetTopicsInWindowParams,
+): Promise<Array<{ id: number; name: string; slug: string }>> {
+  return defaultDb
+    .select({
+      id: topics.id,
+      name: topics.name,
+      slug: topics.slug,
+    })
+    .from(events)
+    .innerJoin(eventTopics, eq(eventTopics.eventId, events.id))
+    .innerJoin(topics, eq(topics.id, eventTopics.topicId))
+    .where(
+      and(
+        inArray(events.month, params.months),
+        inArray(events.day, params.days),
+      ),
+    )
+    .groupBy(topics.id, topics.name, topics.slug)
+    .orderBy(topics.name);
+}
+
+export async function getTopicsInWindow(
+  params: GetTopicsInWindowParams,
+  deps?: TopicsInWindowDeps,
+): Promise<Array<{ id: number; name: string; slug: string }>> {
+  const resolvedDeps = deps ?? { db: { query: queryTopicsInWindow } };
+  return resolvedDeps.db.query(params);
 }
 
 export async function getEvents(params: GetEventsParams, deps?: Deps): Promise<EventWithTopics[]> {
