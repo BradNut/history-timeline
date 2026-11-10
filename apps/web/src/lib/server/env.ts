@@ -9,6 +9,8 @@ export const envSchema = z
 		USE_REDIS_CACHE: z.string().default('false'),
 		REDIS_URI: z.url({ error: 'REDIS_URI must be a valid URL' }).optional(),
 		REGISTRATION_ENABLED: z.string().default('true'),
+		AUTH_IP_ADDRESS_HEADERS: z.string().optional(),
+		AUTH_TRUSTED_PROXIES: z.string().optional(),
 		ADMIN_SEED_EMAIL: z.email({ error: 'ADMIN_SEED_EMAIL must be a valid email' }).optional(),
 		ADMIN_SEED_PASSWORD: z
 			.string()
@@ -31,6 +33,8 @@ export function validateEnv(): Env {
 		USE_REDIS_CACHE: process.env.USE_REDIS_CACHE,
 		REDIS_URI: process.env.REDIS_URI,
 		REGISTRATION_ENABLED: process.env.REGISTRATION_ENABLED,
+		AUTH_IP_ADDRESS_HEADERS: process.env.AUTH_IP_ADDRESS_HEADERS,
+		AUTH_TRUSTED_PROXIES: process.env.AUTH_TRUSTED_PROXIES,
 		ADMIN_SEED_EMAIL: process.env.ADMIN_SEED_EMAIL,
 		ADMIN_SEED_PASSWORD: process.env.ADMIN_SEED_PASSWORD
 	};

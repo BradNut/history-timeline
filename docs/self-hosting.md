@@ -18,6 +18,8 @@ Copy `apps/web/.env.example` to `apps/web/.env` and set the values for your depl
 | `ADMIN_SEED_PASSWORD` | No | — | Password for the pre-provisioned admin account |
 | `USE_REDIS_CACHE` | No | `false` | Set to `true` to enable Redis caching |
 | `REDIS_URI` | No | — | Redis connection string (required when `USE_REDIS_CACHE=true`) |
+| `AUTH_IP_ADDRESS_HEADERS` | No | `x-forwarded-for` | Comma-separated headers Better Auth reads the client IP from, in priority order. List only headers your proxy sets |
+| `AUTH_TRUSTED_PROXIES` | No | — | Comma-separated proxy IPs/CIDRs. Needed when the IP header holds a proxy chain; without it Better Auth rate-limits all clients in one shared bucket |
 
 `ADMIN_SEED_EMAIL` and `ADMIN_SEED_PASSWORD` must both be set or both be left unset.
 
