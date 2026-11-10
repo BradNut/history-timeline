@@ -16,6 +16,16 @@ async function resetTable(db: NodePgDatabase<typeof schema>, table: Table) {
 
 const db = createScriptDb();
 
+// The container entrypoint sets DB_SEED_ONLY_IF_EMPTY so deploys/restarts only seed a
+// new database. `pnpm db:seed` leaves it unset and always resets.
+if (process.env.DB_SEED_ONLY_IF_EMPTY) {
+  const [existing] = await db.select({ id: schema.topics.id }).from(schema.topics).limit(1);
+  if (existing) {
+    console.log('Database already seeded; skipping seed');
+    await closeScriptDb(db);
+  }
+}
+
 for (const table of [
   schema.eventTopics,
   schema.taxonomyMappings,
